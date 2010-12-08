@@ -12,6 +12,8 @@
 #include <lcmtypes/kinect_depth_data_t.h>
 #include <lcmtypes/kinect_image_data_t.h>
 
+#include "timestamp.h"
+
 #define dbg(...) fprintf(stderr, __VA_ARGS__)
 
 typedef struct _state_t {
@@ -29,8 +31,13 @@ typedef struct _state_t {
     freenect_depth_format requested_depth_format;
     freenect_depth_format current_depth_format;
 
-    uint8_t* depth_data;
     uint8_t* image_data;
+
+    uint8_t* image_buf;
+    int image_buf_size;
+
+    uint8_t* depth_buf;
+    int depth_buf_size;
 
     freenect_raw_tilt_state* tilt_state;
     double accel_mks[3];
@@ -42,15 +49,16 @@ typedef struct _state_t {
     char* image_channel;
     char* depth_channel;
 
+    kinect_image_data_t image_msg;
+    kinect_depth_data_t depth_msg;
+
+    int have_img;
+    int have_depth;
+
+    timestamp_sync_state_t* clocksync;
+
     lcm_t* lcm;
 } state_t;
-
-static int64_t _timestamp_now()
-{
-    struct timeval tv;
-    gettimeofday (&tv, NULL);
-    return (int64_t) tv.tv_sec * 1000000 + tv.tv_usec;
-}
 
 #if 0
 
@@ -157,92 +165,81 @@ void depth_cb(freenect_device *dev, void *data, uint32_t timestamp)
 {
     state_t* state = (state_t*) freenect_get_user(dev);
 
-    kinect_depth_data_t msg;
-    msg.timestamp = _timestamp_now();
+    int64_t host_utime = timestamp_now();
+    state->depth_msg.timestamp = timestamp_sync(state->clocksync, timestamp, host_utime);
 
     switch(state->current_depth_format) {
         case FREENECT_DEPTH_11BIT:
-            msg.depth_data_nbytes = FREENECT_DEPTH_11BIT_SIZE;
-            msg.depth_data_format = KINECT_DEPTH_DATA_T_DEPTH_11BIT;
+            state->depth_msg.depth_data_nbytes = FREENECT_DEPTH_11BIT_SIZE;
+            state->depth_msg.depth_data_format = KINECT_DEPTH_DATA_T_DEPTH_11BIT;
             break;
         case FREENECT_DEPTH_10BIT:
-            msg.depth_data_nbytes = FREENECT_DEPTH_10BIT_SIZE;
-            msg.depth_data_format = KINECT_DEPTH_DATA_T_DEPTH_10BIT;
+            state->depth_msg.depth_data_nbytes = FREENECT_DEPTH_10BIT_SIZE;
+            state->depth_msg.depth_data_format = KINECT_DEPTH_DATA_T_DEPTH_10BIT;
             break;
         case FREENECT_DEPTH_11BIT_PACKED:
-            msg.depth_data_nbytes = FREENECT_DEPTH_11BIT_PACKED_SIZE;
-            msg.depth_data_format = KINECT_DEPTH_DATA_T_DEPTH_11BIT_PACKED;
+            state->depth_msg.depth_data_nbytes = FREENECT_DEPTH_11BIT_PACKED_SIZE;
+            state->depth_msg.depth_data_format = KINECT_DEPTH_DATA_T_DEPTH_11BIT_PACKED;
             break;
         case FREENECT_DEPTH_10BIT_PACKED:
-            msg.depth_data_nbytes = FREENECT_DEPTH_10BIT_PACKED_SIZE;
-            msg.depth_data_format = KINECT_DEPTH_DATA_T_DEPTH_10BIT_PACKED;
+            state->depth_msg.depth_data_nbytes = FREENECT_DEPTH_10BIT_PACKED_SIZE;
+            state->depth_msg.depth_data_format = KINECT_DEPTH_DATA_T_DEPTH_10BIT_PACKED;
             break;
         default:
-            msg.depth_data_nbytes = 0;
-            msg.depth_data_format = 0; // TODO spew warning
+            state->depth_msg.depth_data_nbytes = 0;
+            state->depth_msg.depth_data_format = 0; // TODO spew warning
             break;
     }
 
-    msg.depth_data = (uint8_t*) malloc(msg.depth_data_nbytes);
-    memcpy(msg.depth_data, data, msg.depth_data_nbytes);
-
-    populate_status_t(state, &msg.status, msg.timestamp);
-    
-    kinect_depth_data_t_publish(state->lcm, state->depth_channel, &msg);
-
-    dbg("published depth data\n");
+    assert(state->depth_msg.depth_data_nbytes < state->depth_buf_size);
+    memcpy(state->depth_buf, data, state->depth_msg.depth_data_nbytes);
+    state->have_img++;
 }
 
 void image_cb(freenect_device *dev, void *data, uint32_t timestamp)
 {
     state_t* state = (state_t*) freenect_get_user(dev);
 
-    kinect_image_data_t msg;
-    msg.timestamp = _timestamp_now();
-    // TODO better time synchronization
+    int64_t host_utime = timestamp_now();
+    state->image_msg.timestamp = timestamp_sync(state->clocksync, timestamp, host_utime);
 
     switch(state->current_image_format) {
         case FREENECT_VIDEO_RGB:
-            msg.image_data_nbytes =  FREENECT_VIDEO_RGB_SIZE;
-            msg.image_data_format = KINECT_IMAGE_DATA_T_VIDEO_RGB;
+            state->image_msg.image_data_nbytes =  FREENECT_VIDEO_RGB_SIZE;
+            state->image_msg.image_data_format = KINECT_IMAGE_DATA_T_VIDEO_RGB;
             break;
         case FREENECT_VIDEO_BAYER:
-            msg.image_data_nbytes =  FREENECT_VIDEO_BAYER_SIZE;
-            msg.image_data_format = KINECT_IMAGE_DATA_T_VIDEO_BAYER;
+            state->image_msg.image_data_nbytes =  FREENECT_VIDEO_BAYER_SIZE;
+            state->image_msg.image_data_format = KINECT_IMAGE_DATA_T_VIDEO_BAYER;
             break;
         case FREENECT_VIDEO_YUV_RGB:
-            msg.image_data_nbytes =  FREENECT_VIDEO_YUV_RGB_SIZE;
-            msg.image_data_format = KINECT_IMAGE_DATA_T_VIDEO_YUV_RGB;
+            state->image_msg.image_data_nbytes =  FREENECT_VIDEO_YUV_RGB_SIZE;
+            state->image_msg.image_data_format = KINECT_IMAGE_DATA_T_VIDEO_YUV_RGB;
             break;
         case FREENECT_VIDEO_YUV_RAW:
-            msg.image_data_nbytes =  FREENECT_VIDEO_YUV_RAW_SIZE;
-            msg.image_data_format = KINECT_IMAGE_DATA_T_VIDEO_YUV_RAW;
+            state->image_msg.image_data_nbytes =  FREENECT_VIDEO_YUV_RAW_SIZE;
+            state->image_msg.image_data_format = KINECT_IMAGE_DATA_T_VIDEO_YUV_RAW;
             break;
         case FREENECT_VIDEO_IR_8BIT:
-            msg.image_data_nbytes =  FREENECT_VIDEO_IR_8BIT_SIZE;
-            msg.image_data_format = KINECT_IMAGE_DATA_T_VIDEO_IR_8BIT;
+            state->image_msg.image_data_nbytes =  FREENECT_VIDEO_IR_8BIT_SIZE;
+            state->image_msg.image_data_format = KINECT_IMAGE_DATA_T_VIDEO_IR_8BIT;
             break;
         case FREENECT_VIDEO_IR_10BIT:
-            msg.image_data_nbytes =  FREENECT_VIDEO_IR_10BIT_SIZE;
-            msg.image_data_format = KINECT_IMAGE_DATA_T_VIDEO_IR_10BIT;
+            state->image_msg.image_data_nbytes =  FREENECT_VIDEO_IR_10BIT_SIZE;
+            state->image_msg.image_data_format = KINECT_IMAGE_DATA_T_VIDEO_IR_10BIT;
             break;
         case FREENECT_VIDEO_IR_10BIT_PACKED:
-            msg.image_data_nbytes =  FREENECT_VIDEO_IR_10BIT_PACKED_SIZE;
-            msg.image_data_format = KINECT_IMAGE_DATA_T_VIDEO_IR_10BIT_PACKED;
+            state->image_msg.image_data_nbytes =  FREENECT_VIDEO_IR_10BIT_PACKED_SIZE;
+            state->image_msg.image_data_format = KINECT_IMAGE_DATA_T_VIDEO_IR_10BIT_PACKED;
             break;
         default:
-            msg.image_data_nbytes = 0; // TODO spew warning
-            msg.image_data_format = -1;
+            state->image_msg.image_data_nbytes = 0; // TODO spew warning
+            state->image_msg.image_data_format = -1;
             break;
     }
-    msg.image_data = (uint8_t*) malloc(msg.image_data_nbytes);
-    memcpy(msg.image_data, data, msg.image_data_nbytes);
-
-    populate_status_t(state, &msg.status, msg.timestamp);
-    
-    kinect_image_data_t_publish(state->lcm, state->image_channel, &msg);
-
-    dbg("published image data\n");
+    assert(state->image_msg.image_data_nbytes < state->image_buf_size);
+    memcpy(state->image_buf, data, state->image_msg.image_data_nbytes);
+    state->have_depth++;
 }
 
 static void *
@@ -261,10 +258,24 @@ freenect_threadfunc(void *user_data)
 
 	freenect_start_depth(state->f_dev);
 	freenect_start_video(state->f_dev);
-    printf("looping\n");
 
+    state->have_img = 0;
+    state->have_depth = 0;
 	while (!state->die && freenect_process_events(state->f_ctx) >= 0) {
-        printf("loop\n");
+        if(state->have_img) {
+            populate_status_t(state, &state->image_msg.status, state->image_msg.timestamp);
+            kinect_image_data_t_publish(state->lcm, state->image_channel, &state->image_msg);
+
+            dbg("published image data\n");
+            state->have_img = 0;
+        } else if(state->have_depth) {
+            populate_status_t(state, &state->depth_msg.status, state->depth_msg.timestamp);
+            kinect_depth_data_t_publish(state->lcm, state->depth_channel, &state->depth_msg);
+
+            dbg("published depth data\n");
+            state->have_depth = 0;
+        }
+
 		if (state->requested_image_format != state->current_image_format) {
 			freenect_stop_video(state->f_dev);
 			freenect_set_video_format(state->f_dev, state->requested_image_format);
@@ -287,8 +298,6 @@ freenect_threadfunc(void *user_data)
 
 int main(int argc, char **argv)
 {
-	int res;
-
     state_t *state = (state_t*)calloc(1, sizeof(state_t));
     state->freenect_thread = NULL;
     state->die = 0;
@@ -304,16 +313,32 @@ int main(int argc, char **argv)
     state->current_depth_format = state->requested_depth_format;
     state->current_led = state->requested_led;
 
-	state->depth_data = (uint8_t*) malloc(640*480*sizeof(float));
+    // 
+	int user_device_number = 0;
+	if (argc > 1)
+		user_device_number = atoi(argv[1]);
+
+    // allocate image and depth buffers
 	state->image_data   = (uint8_t*) malloc(640*480*4);
 
-    state->image_channel = strdup("KINECT_IMAGE");
-    state->depth_channel = strdup("KINECT_DEPTH");
+    state->image_buf_size = 640 * 480 * 4;
+    state->image_buf = (uint8_t*) malloc(state->image_buf_size);
+    state->image_msg.image_data = state->image_buf;
+    state->image_msg.width = FREENECT_FRAME_W;
+    state->image_msg.height = FREENECT_FRAME_H;
 
-	if(freenect_init(&state->f_ctx, NULL) < 0) {
-		printf("freenect_init() failed\n");
-		return 1;
-	}
+    state->depth_buf_size = 640 * 480 * sizeof(float);
+    state->depth_buf = (uint8_t*) malloc(state->depth_buf_size);
+    state->depth_msg.depth_data = state->depth_buf;
+    state->depth_msg.width = FREENECT_FRAME_W;
+    state->depth_msg.height = FREENECT_FRAME_H;
+
+    state->have_depth = 0;
+    state->have_img = 0;
+
+    // initialize LCM
+    state->image_channel = g_strdup("KINECT_IMAGE");
+    state->depth_channel = g_strdup("KINECT_DEPTH");
 
     state->lcm = lcm_create(NULL);
     if(!state->lcm) {
@@ -321,14 +346,16 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    // initialize the kinect device
+	if(freenect_init(&state->f_ctx, NULL) < 0) {
+		printf("freenect_init() failed\n");
+		return 1;
+	}
+
 	freenect_set_log_level(state->f_ctx, FREENECT_LOG_INFO);
 
 	int num_devices = freenect_num_devices(state->f_ctx);
 	printf("Number of devices found: %d\n", num_devices);
-
-	int user_device_number = 0;
-	if (argc > 1)
-		user_device_number = atoi(argv[1]);
 
 	if (num_devices < 1)
 		return 1;
@@ -340,6 +367,8 @@ int main(int argc, char **argv)
 
     freenect_set_user(state->f_dev, state);
 
+    state->clocksync = timestamp_sync_init(1000000, 0xFFFFFFFF, 1.05);
+
     g_thread_init(NULL);
 
     GError *thread_err = NULL;
@@ -349,12 +378,13 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    // subscribe to kinect command messages...
+    // TODO subscribe to kinect command messages...
 
     while(!state->die) {
         lcm_handle(state->lcm);
     }
 
+    timestamp_sync_free(state->clocksync);
     free(state->image_channel);
     free(state->depth_channel);
     free(state);

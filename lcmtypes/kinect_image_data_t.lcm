@@ -6,6 +6,9 @@ struct image_data_t
 
     kinect.status_t status;
 
+    int16_t  width;
+    int16_t  height;
+
     int32_t  image_data_nbytes;
     byte     image_data[image_data_nbytes];
     int8_t   image_data_format;
