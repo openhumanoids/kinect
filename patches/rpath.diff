@@ -1,0 +1,18 @@
+Index: libfreenect-pod/libfreenect/CMakeLists.txt
+===================================================================
+--- libfreenect-pod.orig/libfreenect/CMakeLists.txt	2010-12-08 01:24:05.000000000 -0500
++++ libfreenect-pod/libfreenect/CMakeLists.txt	2010-12-08 01:24:44.000000000 -0500
+@@ -90,6 +90,13 @@
+ SET(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR}/lib)
+ SET(DOC_OUTPUT_PATH ${CMAKE_BINARY_DIR}/doc)
+ 
++# abuse RPATH
++if(${CMAKE_INSTALL_RPATH})
++    set(CMAKE_INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib:${CMAKE_INSTALL_RPATH})
++else(${CMAKE_INSTALL_RPATH})
++    set(CMAKE_INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib)
++endif(${CMAKE_INSTALL_RPATH})
++
+ # Pretty much everyone is going to need the main includes
+ include_directories (${CMAKE_CURRENT_SOURCE_DIR}/include)
+ 

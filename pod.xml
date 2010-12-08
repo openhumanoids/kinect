@@ -1,0 +1,16 @@
+<pod>
+    <name>kinect</name>
+
+    <maintainers>
+    </maintainers>
+
+    <summary>
+    </summary>
+
+    <description>
+        uses libfreenect, imported on Wed. Dec 8, 2010.
+    </description>
+
+    <requirements>
+    </requirements>
+</pod>
