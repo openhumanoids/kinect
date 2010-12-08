@@ -18,4 +18,7 @@ include_directories(${LCMTYPES_INCLUDE_DIRS}
 
 
 # build LCM kinect utility
-add_subdirectory(src/freenect-lcm)
+add_subdirectory(src/kinect-lcm)
+
+# Visualization tool and bot2-vis renderer
+add_subdirectory(src/kinect-renderer)
