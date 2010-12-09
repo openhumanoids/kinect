@@ -18,6 +18,31 @@
 
 #define dbg(...) fprintf(stderr, __VA_ARGS__)
 
+#if 0
+typedef struct _rate_t {
+    double target_hz;
+    double current_hz;
+    int64_t last_tick;
+} rate_t; 
+
+rate_t* rate_new(double target_hz);
+
+void rate_destroy(rate_t* rate);
+
+/**
+ * returns: 1 if an image should be published.  0 if not
+ */
+int rate_check(rate_t* rate) {
+    // check the current time
+
+    // compute the framerate if we were to publish an image
+
+    // if the potential framerate is too high, don't publish, and return 0
+
+    // otherwise, update current_hz with a exponential moving average, and return 1
+}
+#endif
+
 typedef struct _state_t {
   GThread* freenect_thread;
   volatile int die;
@@ -429,8 +454,7 @@ int main(int argc, char **argv)
   state->image_msg.width = FREENECT_FRAME_W;
   state->image_msg.height = FREENECT_FRAME_H;
 
-  //why use size of float??
-  state->depth_buf_size = 640 * 480 * sizeof(int16_t);//sizeof(float);
+  state->depth_buf_size = 640 * 480 * sizeof(int16_t);
   state->depth_buf = (uint8_t*) malloc(state->depth_buf_size);
   state->depth_msg.depth_data = state->depth_buf;
   state->depth_msg.width = FREENECT_FRAME_W;
