@@ -4,13 +4,20 @@ struct cmd_t
 {
     int64_t  timestamp;
 
-    int32_t freenect_angle;
+	int8_t   type; //type of command
 
-    int8_t  freenect_led_status;
+    int32_t  tilt_degree;
+    int8_t   led_status;
+    int8_t   depth_data_format; //not used
+    int8_t   image_data_format; //not used
 
-    int8_t   requested_depth_data_format; //not used
-    int8_t   requested_image_data_format; //not used
+	//constants for the command type
+	const int8_t SET_TILT = 0;
+	const int8_t SET_LED  = 1;	
+	const int8_t SET_DEPTH_DATA_FORMAT  = 2;	
+	const int8_t SET_IMAGE_DATA_FORMAT  = 3;	
 
+	//LED state
     const int8_t LED_OFF    = 0;
     const int8_t LED_GREEN  = 1;
     const int8_t LED_RED    = 2;
@@ -18,13 +25,14 @@ struct cmd_t
     const int8_t LED_BLINK_YELLOW = 4;
     const int8_t LED_BLINK_GREEN = 5;
     const int8_t LED_BLINK_RED_YELLOW = 6;
-    const int8_t LED_IGNORE = 100; //might need a way to ignore the angle 
 
+	//Depth Data format
     const int8_t DEPTH_11BIT = 0;
     const int8_t DEPTH_10BIT = 1;
     const int8_t DEPTH_11BIT_PACKED = 2;
     const int8_t DEPTH_10BIT_PACKED = 3;
 
+	//Image Data format
     const int8_t VIDEO_RGB = 0;
     const int8_t VIDEO_BAYER = 1;
     const int8_t VIDEO_IR_8BIT = 2;

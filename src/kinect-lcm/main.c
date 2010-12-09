@@ -20,9 +20,9 @@
 
 #if 0
 typedef struct _rate_t {
-    double target_hz;
-    double current_hz;
-    int64_t last_tick;
+  double target_hz;
+  double current_hz;
+  int64_t last_tick;
 } rate_t; 
 
 rate_t* rate_new(double target_hz);
@@ -33,13 +33,13 @@ void rate_destroy(rate_t* rate);
  * returns: 1 if an image should be published.  0 if not
  */
 int rate_check(rate_t* rate) {
-    // check the current time
+  // check the current time
 
-    // compute the framerate if we were to publish an image
+  // compute the framerate if we were to publish an image
 
-    // if the potential framerate is too high, don't publish, and return 0
+  // if the potential framerate is too high, don't publish, and return 0
 
-    // otherwise, update current_hz with a exponential moving average, and return 1
+  // otherwise, update current_hz with a exponential moving average, and return 1
 }
 #endif
 
@@ -190,9 +190,9 @@ populate_status_t(state_t* state, kinect_status_t* msg, int64_t timestamp)
 }
 
 void cmd_cb(const lcm_recv_buf_t *rbuf __attribute__((unused)), 
-	    const char *channel __attribute__((unused)), 
-	    const kinect_cmd_t *msg,
-	    void *user)
+			const char *channel __attribute__((unused)), 
+			const kinect_cmd_t *msg,
+			void *user)
 {
   state_t *self = (state_t *)user;
   
@@ -202,26 +202,41 @@ void cmd_cb(const lcm_recv_buf_t *rbuf __attribute__((unused)),
     kinect_cmd_t_destroy(static_msg);
   static_msg = kinect_cmd_t_copy(msg);
 
-  dbg("Received cmd \n Ang : %d, LED : %d\n", static_msg->freenect_angle, static_msg->freenect_led_status);
+  if(static_msg->type == KINECT_CMD_T_SET_TILT){
+	dbg("Received tilt command; Angle : %d\n", static_msg->tilt_degree);
+	self->freenect_angle = static_msg->tilt_degree;
 
-  self->freenect_angle = static_msg->freenect_angle;
-
-  if(self->freenect_angle > 30)
-    self->freenect_angle = 30;
-  else if(self->freenect_angle < -20)
-    self->freenect_angle = -20;
-
-  freenect_set_tilt_degs(self->f_dev,self->freenect_angle);
-
-  //check if between 0 and 6
-  if( static_msg->freenect_led_status >=0 && static_msg->freenect_led_status <=6){
-    freenect_set_led(self->f_dev, static_msg->freenect_led_status);    
+	if(self->freenect_angle > 30)
+	  self->freenect_angle = 30;
+	else if(self->freenect_angle < -20)
+	  self->freenect_angle = -20;
+	
+	freenect_set_tilt_degs(self->f_dev,self->freenect_angle);
   }
-  
-  //add image format request also 
-  
-  
-  
+  else if(static_msg->type == KINECT_CMD_T_SET_LED){
+	//check if between 0 and 6
+	if( static_msg->led_status >=0 && static_msg->led_status <=6){
+	  freenect_set_led(self->f_dev, static_msg->led_status);    
+	}
+  }
+  else if(static_msg->type == KINECT_CMD_T_SET_DEPTH_DATA_FORMAT){
+	if( static_msg->depth_data_format >=0 && static_msg->depth_data_format < 4){
+	  self->requested_depth_format = static_msg->depth_data_format;
+	}	
+  }
+
+  else if(static_msg->type == KINECT_CMD_T_SET_IMAGE_DATA_FORMAT){
+	if( static_msg->image_data_format == KINECT_CMD_T_VIDEO_RGB ||
+		static_msg->image_data_format == KINECT_CMD_T_VIDEO_BAYER ||
+		static_msg->image_data_format == KINECT_CMD_T_VIDEO_IR_8BIT ||
+		static_msg->image_data_format == KINECT_CMD_T_VIDEO_IR_10BIT ||
+		static_msg->image_data_format == KINECT_CMD_T_VIDEO_IR_10BIT_PACKED ||
+		static_msg->image_data_format == KINECT_CMD_T_VIDEO_YUV_RGB ||
+		static_msg->image_data_format == KINECT_CMD_T_VIDEO_YUV_RAW ||
+		static_msg->image_data_format == KINECT_CMD_T_VIDEO_JPEG){
+	  self->requested_image_format = static_msg->image_data_format;
+	}	
+  }
 }
 
 void depth_cb(freenect_device *dev, void *data, uint32_t timestamp)
@@ -369,11 +384,20 @@ freenect_threadfunc(void *user_data)
       //dbg("published depth data\n");
       state->have_depth = 0;
     }
+	//is the depth format change handled??
     if (state->requested_image_format != state->current_image_format) {
+	  dbg("Changing Image format\n");
       freenect_stop_video(state->f_dev);
       freenect_set_video_format(state->f_dev, state->requested_image_format);
       freenect_start_video(state->f_dev);
       state->current_image_format = state->requested_image_format;
+    }
+	if (state->requested_depth_format != state->current_depth_format) {
+	  dbg("Changing Depth format\n");
+	  freenect_stop_depth(state->f_dev);
+	  freenect_set_depth_format(state->f_dev, state->requested_depth_format);
+      freenect_start_depth(state->f_dev);
+	  state->current_depth_format = state->requested_depth_format;
     }
   }
 
