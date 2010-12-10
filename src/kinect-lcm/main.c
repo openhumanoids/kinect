@@ -209,7 +209,7 @@ int rate_check(rate_t* rate) {
 
   // if the potential framerate is too high, don't publish, and return 0
   double p_framerate = alpha * (1.0 * 1e6 / dt)  + (1 - alpha) * rate->current_hz;
-
+  //dbg("C: %f, P:%f \n", rate->current_hz, p_framerate);
   if(p_framerate > rate->target_hz){
     return 0;
   }
@@ -274,7 +274,9 @@ void cmd_cb(const lcm_recv_buf_t *rbuf __attribute__((unused)),
 void depth_cb(freenect_device *dev, void *data, uint32_t timestamp)
 {
   state_t* state = (state_t*) freenect_get_user(dev);
-
+  if(!rate_check(state->depth_rate)){
+    return;
+  }
   int64_t host_utime = timestamp_now();
   state->depth_msg.timestamp = timestamp_sync(state->clocksync, timestamp, host_utime);
 
@@ -313,6 +315,10 @@ void image_cb(freenect_device *dev, void *data, uint32_t timestamp)
 
   if(state->skip_img)
     return;
+
+  if(!rate_check(state->img_rate)){
+    return;
+  }
 
   int64_t host_utime = timestamp_now();
   state->image_msg.timestamp = timestamp_sync(state->clocksync, timestamp, host_utime);
@@ -378,24 +384,16 @@ freenect_threadfunc(void *user_data)
 
   while (!state->die && freenect_process_events(state->f_ctx) >= 0) {
     if(state->have_img && !state->skip_img){ 
-      
-      if(rate_check(state->img_rate)){
 	populate_status_t(state, &state->image_msg.status, state->image_msg.timestamp);
 	kinect_image_data_t_publish(state->lcm, state->image_channel, &state->image_msg);
-	//dbg("published image data\n");
 	dbg("i");
 	state->have_img = 0;
-      }
     } else if(state->have_depth){
-      if(rate_check(state->depth_rate)){
 	populate_status_t(state, &state->depth_msg.status, state->depth_msg.timestamp);
 	kinect_depth_data_t_publish(state->lcm, state->depth_channel, &state->depth_msg);
 	dbg("d");
-	//dbg("published depth data\n");
 	state->have_depth = 0;
-      }
     }
-	//is the depth format change handled??
     if (state->requested_image_format != state->current_image_format) {
 	  dbg("Changing Image format\n");
       freenect_stop_video(state->f_dev);
