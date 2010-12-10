@@ -19,35 +19,126 @@ typedef struct _KinectRenderer {
     int height;
 
     // depth data, in meters.
-    float* depth_data;
-    int need_to_recompute_depth_data;
+    float* xyz;
+    int need_to_recompute_frame_data;
+
+    int depth_lut_size;
+    float* depth_lut_11bit;
 } KinectRenderer;
 
 static void
-recompute_depth_data(KinectRenderer* self);
+recompute_frame_data_data(KinectRenderer* self);
+
+/** Given an array of colors, a palette is created that linearly interpolates through all the colors. **/
+static void color_util_build_color_table(double color_palette[][3], int palette_size, float lut[][3], int lut_size)
+{
+    for (int idx = 0; idx < lut_size; idx++) {
+        double znorm = ((double) idx) / lut_size;
+
+        int color_index = (palette_size - 1) * znorm;
+        double alpha = (palette_size - 1) * znorm - color_index;
+        
+        for (int i = 0; i < 3; i++) {
+            lut[idx][i] = color_palette[color_index][i] * (1.0 - alpha) + color_palette[color_index+1][i]*alpha;
+        }    
+    }
+}
+
+#define JET_COLORS_LUT_SIZE 1024
+static float jet_colors[JET_COLORS_LUT_SIZE][3];
+static int jet_colors_initialized = 0;
+
+static void init_color_table_jet()
+{
+    double jet[][3] = {{ 0,   0,   1 },
+                       { 0,  .5,  .5 },
+                       { .8, .8,   0 },
+                       { 1,   0,   0 }};
+
+    color_util_build_color_table(jet, sizeof(jet)/(sizeof(double)*3), jet_colors, JET_COLORS_LUT_SIZE);
+    jet_colors_initialized = 1;
+}
+
+static inline float *color_util_jet(double v)
+{
+    if (!jet_colors_initialized)
+        init_color_table_jet();
+
+    v = fmax(0, v);
+    v = fmin(1, v);
+
+    int idx = (JET_COLORS_LUT_SIZE - 1) * v;
+    return jet_colors[idx];
+}
 
 static void
-recompute_depth_data(KinectRenderer* self)
+compute_lookup_tables(KinectRenderer* self)
+{
+    int raw_disparity;
+    self->depth_lut_size = 2048;
+    self->depth_lut_11bit = (float*) malloc(self->depth_lut_size * sizeof(float));
+
+    for(raw_disparity=0; raw_disparity<self->depth_lut_size; raw_disparity++) {
+        self->depth_lut_11bit[raw_disparity] = 0.1236 * tan(raw_disparity / 2842.5 + 1.1863);
+    }
+
+    // TODO replace these with calibrated values
+    double fx_d = 5.9421434211923247e+02;
+    double fy_d = 5.9104053696870778e+02;
+    double cx_d = 3.3930780975300314e+02;
+    double cy_d = 2.4273913761751615e+02;
+//    double k1_d = -2.6386489753128833e-01;
+//    double k2_d = 9.9966832163729757e-01;
+//    double p1_d = -7.6275862143610667e-04;
+//    double p2_d = 5.0350940090814270e-03;
+//    double k3_d = -1.3053628089976321e+00;
+
+    int pind = 0;
+    for(int v=0; v<self->height; v++) {
+        for(int u=0; u<self->width; u++) {
+            self->xyz[pind*3+0] = (u - cx_d) / fx_d;
+            self->xyz[pind*3+1] = (v - cy_d) / fy_d;
+            self->xyz[pind*3+2] = 1;
+            pind++;
+        }
+    }
+
+}
+
+static void
+recompute_frame_data_data(KinectRenderer* self)
 {
     if(!self->depth_msg) {
-        self->need_to_recompute_depth_data = 0;
+        self->need_to_recompute_frame_data = 0;
         return;
     }
 
-//    int npixels = self->width * self->height;
+    int npixels = self->width * self->height;
 
     switch(self->depth_msg->depth_data_format) {
         case KINECT_DEPTH_DATA_T_DEPTH_11BIT:
-            // TODO
+            if(G_BYTE_ORDER == G_LITTLE_ENDIAN) {
+                int16_t* rdd = (int16_t*) self->depth_msg->depth_data;
+                int i;
+                for(i=0; i<npixels; i++) {
+                    int d = rdd[i];
+                    if(d >= 0 && d < self->depth_lut_size)
+                        self->xyz[i*3+2] = self->depth_lut_11bit[d];
+                    else
+                        self->xyz[i*3+2] = 0;
+                }
+            } else {
+                fprintf(stderr, "Big endian systems not supported\n");
+            }
             break;
         case KINECT_DEPTH_DATA_T_DEPTH_10BIT:
-            // TODO
+            fprintf(stderr, "10-bit depth data not supported\n");
             break;
         case KINECT_DEPTH_DATA_T_DEPTH_11BIT_PACKED:
             // TODO
             break;
         case KINECT_DEPTH_DATA_T_DEPTH_10BIT_PACKED:
-            // TODO
+            fprintf(stderr, "10-bit packed depth data not supported\n");
             break;
         default:
             break;
@@ -193,7 +284,7 @@ on_kinect_image (const lcm_recv_buf_t *rbuf, const char *channel,
 
     if(self->image_msg)
         kinect_image_data_t_destroy(self->image_msg);
-    self->image_msg = kinect_image_data_t_copy(self->image_msg);
+    self->image_msg = kinect_image_data_t_copy(msg);
 
     bot_viewer_request_redraw( self->viewer );
 }
@@ -206,9 +297,9 @@ on_kinect_depth (const lcm_recv_buf_t *rbuf, const char *channel,
 
     if(self->depth_msg)
         kinect_depth_data_t_destroy(self->depth_msg);
-    self->depth_msg = kinect_depth_data_t_copy(self->depth_msg);
+    self->depth_msg = kinect_depth_data_t_copy(msg);
 
-    self->need_to_recompute_depth_data = 1;
+    self->need_to_recompute_frame_data = 1;
 
     bot_viewer_request_redraw( self->viewer );
 }
@@ -225,11 +316,27 @@ static void on_param_widget_changed (BotGtkParamWidget *pw, const char *name, vo
 static void _draw(BotViewer *viewer, BotRenderer *renderer)
 {
     KinectRenderer *self = (KinectRenderer*) renderer->user;
+    if(!self->depth_msg)
+        return;
 
-    if(self->need_to_recompute_depth_data)
-        recompute_depth_data(self);
+    if(self->need_to_recompute_frame_data)
+        recompute_frame_data_data(self);
 
-    // TODO
+    // rotate so that X is forward and Z is up
+    glRotatef(-90, 0, 0, 1);
+    glRotatef(-90, 1, 0, 0);
+
+    glBegin(GL_POINTS);
+    glColor3f(0, 0, 0);
+    for(int pind=0; pind<self->width*self->height; pind++) {
+        float x = self->xyz[pind*3+0] * self->xyz[pind*3+2];
+        float y = self->xyz[pind*3+1] * self->xyz[pind*3+2];
+        float z = self->xyz[pind*3+2];
+//        float* color = color_util_jet((y + 1.5) / 2);
+//        glColor3fv(color);
+        glVertex3f(x, y, z);
+    }
+    glEnd();
 }
 
 static void _free(BotRenderer *renderer)
@@ -241,7 +348,7 @@ static void _free(BotRenderer *renderer)
     if(self->depth_msg)
         kinect_depth_data_t_destroy(self->depth_msg);
 
-    free(self->depth_data);
+    free(self->xyz);
 
     free(self);
 }
@@ -251,13 +358,16 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, lcm_t* lcm, int priority)
 {
     KinectRenderer *self = (KinectRenderer*) calloc(1, sizeof(KinectRenderer));
 
-    self->need_to_recompute_depth_data = 0;
+    self->need_to_recompute_frame_data = 0;
     self->width = 640;
     self->height = 480;
-    self->depth_data = (float*) malloc(self->width * self->height * sizeof(float));
+    self->xyz = (float*) malloc(self->width * self->height * 3 * sizeof(float));
 
     self->image_msg = NULL;
     self->depth_msg = NULL;
+
+    self->depth_lut_size = 0;
+    self->depth_lut_11bit = NULL;
 
     BotRenderer *renderer = &self->renderer;
 
@@ -271,6 +381,8 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, lcm_t* lcm, int priority)
     renderer->widget = GTK_WIDGET(self->pw);
     renderer->enabled = 1;
     renderer->user = self;
+
+    compute_lookup_tables(self);
 
     g_signal_connect (G_OBJECT (self->pw), "changed",
                       G_CALLBACK (on_param_widget_changed), self);

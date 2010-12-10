@@ -1,6 +1,7 @@
-add_definitions(-Wall)
+add_definitions(-Wall -std=gnu99)
 
-add_library(kinect-render SHARED kinect_renderer.c)
+add_library(kinect-render SHARED 
+    kinect_renderer.c)
 
 add_executable(kinect-viewer main.c)
 
