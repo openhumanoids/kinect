@@ -1,3 +1,5 @@
+#include <zlib.h>
+
 #include <lcm/lcm.h>
 
 #include <bot_core/bot_core.h>
@@ -21,6 +23,9 @@ typedef struct _KinectRenderer {
     // depth data, in meters.
     float* xyz;
     int need_to_recompute_frame_data;
+
+    uint8_t* uncompress_buffer;
+    int uncompress_buffer_size;
 
     int depth_lut_size;
     float* depth_lut_11bit;
@@ -115,10 +120,26 @@ recompute_frame_data_data(KinectRenderer* self)
 
     int npixels = self->width * self->height;
 
+    const uint8_t* depth_data = self->depth_msg->depth_data;
+
+    if(self->depth_msg->compression != KINECT_DEPTH_DATA_T_COMPRESSION_NONE) {
+        if(self->depth_msg->uncompressed_size > self->uncompress_buffer_size) {
+            self->uncompress_buffer_size = self->depth_msg->uncompressed_size;
+            self->uncompress_buffer = (uint8_t*) realloc(self->uncompress_buffer, self->uncompress_buffer_size);
+        }
+        unsigned long dlen = self->depth_msg->uncompressed_size;
+        int status = uncompress(self->uncompress_buffer, &dlen, 
+                self->depth_msg->depth_data, self->depth_msg->depth_data_nbytes);
+        if(status != Z_OK) {
+            return;
+        }
+        depth_data = self->uncompress_buffer;
+    }
+
     switch(self->depth_msg->depth_data_format) {
         case KINECT_DEPTH_DATA_T_DEPTH_11BIT:
             if(G_BYTE_ORDER == G_LITTLE_ENDIAN) {
-                int16_t* rdd = (int16_t*) self->depth_msg->depth_data;
+                int16_t* rdd = (int16_t*) depth_data;
                 int i;
                 for(i=0; i<npixels; i++) {
                     int d = rdd[i];
@@ -135,7 +156,29 @@ recompute_frame_data_data(KinectRenderer* self)
             fprintf(stderr, "10-bit depth data not supported\n");
             break;
         case KINECT_DEPTH_DATA_T_DEPTH_11BIT_PACKED:
-            // TODO
+            if(G_BYTE_ORDER == G_LITTLE_ENDIAN) {
+                int16_t disparity;
+                int mask = (1 << 11) - 1;
+                uint32_t buffer = 0;
+                int bitsIn = 0;
+                uint8_t* raw = (uint8_t*) depth_data;
+
+                for(int i=0; i<npixels; i++) {
+                    while (bitsIn < 11) {
+                        buffer = (buffer << 8) | *(raw++);
+                        bitsIn += 8;
+                    }
+                    bitsIn -= 11;
+                    disparity = (buffer >> bitsIn) & mask;
+
+                    if(disparity >= 0 && disparity < self->depth_lut_size)
+                        self->xyz[i*3+2] = self->depth_lut_11bit[disparity];
+                    else
+                        self->xyz[i*3+2] = 0;
+                }
+            } else {
+                fprintf(stderr, "Big endian systems not supported\n");
+            }
             break;
         case KINECT_DEPTH_DATA_T_DEPTH_10BIT_PACKED:
             fprintf(stderr, "10-bit packed depth data not supported\n");
@@ -348,6 +391,9 @@ static void _free(BotRenderer *renderer)
     if(self->depth_msg)
         kinect_depth_data_t_destroy(self->depth_msg);
 
+    free(self->uncompress_buffer);
+    self->uncompress_buffer_size = 0;
+
     free(self->xyz);
 
     free(self);
@@ -374,6 +420,9 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, lcm_t* lcm, int priority)
     self->lcm = lcm;
     self->viewer = viewer;
     self->pw = BOT_GTK_PARAM_WIDGET(bot_gtk_param_widget_new());
+
+    self->uncompress_buffer = NULL;
+    self->uncompress_buffer_size = 0;
 
     renderer->draw = _draw;
     renderer->destroy = _free;

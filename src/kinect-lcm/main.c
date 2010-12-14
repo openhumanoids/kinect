@@ -16,7 +16,11 @@
 #include <lcmtypes/kinect_image_data_t.h>
 #include <lcmtypes/kinect_cmd_t.h>
 
+#if USE_JPEG_UTILS_POD
+#include <jpeg-utils/jpeg-utils.h>
+#else
 #include "jpeg-utils-ijg.h"
+#endif
 
 #include "timestamp.h"
 
@@ -333,7 +337,7 @@ void image_cb(freenect_device *dev, void *data, uint32_t timestamp)
 
   if(state->use_jpeg && state->current_image_format == FREENECT_VIDEO_RGB) {
     int compressed_size = state->image_buf_size;
-#if 0
+#if USE_JPEG_UTILS_POD
     int compression_status = jpeg_compress_8u_rgb (data, 640, 480, 640*3,
         state->image_buf, &compressed_size, state->jpeg_quality);
 #else
@@ -459,7 +463,7 @@ int main(int argc, char **argv)
 
   // make these configurable - either/both from the command line and from outside LCM command
   state->requested_image_format = FREENECT_VIDEO_RGB;
-  state->requested_depth_format = FREENECT_DEPTH_11BIT_PACKED;
+  state->requested_depth_format = FREENECT_DEPTH_11BIT;
   state->requested_led = LED_RED;
   state->current_image_format = state->requested_image_format;
   state->current_depth_format = state->requested_depth_format;
@@ -529,7 +533,7 @@ int main(int argc, char **argv)
   state->have_depth = 0;
   state->have_img = 0;
 
-  state->report_rate = rate_new(1.0);
+  state->report_rate = rate_new(0.5);
 
   // initialize LCM
   state->image_channel = g_strdup("KINECT_IMAGE");
