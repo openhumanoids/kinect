@@ -20,5 +20,5 @@ struct image_data_t
 	const int8_t VIDEO_IR_10BIT_PACKED = 4;
 	const int8_t VIDEO_YUV_RGB = 5;
 	const int8_t VIDEO_YUV_RAW = 6;
-    const int8_t VIDEO_JPEG = 100;
+    const int8_t VIDEO_RGB_JPEG = 100;
 }

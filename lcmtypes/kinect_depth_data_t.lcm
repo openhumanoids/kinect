@@ -13,6 +13,11 @@ struct depth_data_t
     byte     depth_data[depth_data_nbytes];
     int8_t   depth_data_format;
 
+    int8_t compression;
+    const int8_t COMPRESSION_NONE = 0;
+    const int8_t COMPRESSION_ZLIB = 1;
+    int32_t uncompressed_size;
+
 	const int8_t DEPTH_11BIT = 0;
 	const int8_t DEPTH_10BIT = 1;
 	const int8_t DEPTH_11BIT_PACKED = 2;

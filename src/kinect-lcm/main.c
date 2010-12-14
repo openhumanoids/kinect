@@ -5,7 +5,9 @@
 #include <math.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include <inttypes.h>
 
+#include <zlib.h>
 #include <glib.h>
 #include <lcm/lcm.h>
 #include <libfreenect.h>
@@ -13,6 +15,8 @@
 #include <lcmtypes/kinect_depth_data_t.h>
 #include <lcmtypes/kinect_image_data_t.h>
 #include <lcmtypes/kinect_cmd_t.h>
+
+#include "jpeg-utils-ijg.h"
 
 #include "timestamp.h"
 
@@ -24,6 +28,7 @@ typedef struct _rate_t {
   double target_hz;
   double current_hz;
   int64_t last_tick;
+  int64_t tick_count;
 } rate_t; 
 
 rate_t* rate_new(double target_hz);
@@ -79,74 +84,18 @@ typedef struct _state_t {
 
   rate_t* depth_rate;
   rate_t* img_rate;
+  rate_t* report_rate;
+
+  uint8_t* jpeg_buf;
+  int jpeg_buf_size;
+
+  int jpeg_quality;
+  int use_jpeg;
+
+  int use_zlib;
 
   lcm_t* lcm;
 } state_t;
-
-#if 0
-
-void keyPressed(unsigned char key, int x, int y)
-{
-  if (key == 27) {
-    die = 1;
-    pthread_join(freenect_thread, NULL);
-    glutDestroyWindow(window);
-    free(depth_data);
-    free(depth_front);
-    free(image_data);
-    free(rgb_mid);
-    free(rgb_front);
-    pthread_exit(NULL);
-  }
-  if (key == 'w') {
-    freenect_angle++;
-    if (freenect_angle > 30) {
-      freenect_angle = 30;
-    }
-  }
-  if (key == 's') {
-    freenect_angle = 0;
-  }
-  if (key == 'f') {
-    if (requested_image_format == FREENECT_VIDEO_IR_8BIT)
-      requested_image_format = FREENECT_VIDEO_RGB;
-    else if (requested_image_format == FREENECT_VIDEO_RGB)
-      requested_image_format = FREENECT_VIDEO_YUV_RGB;
-    else
-      requested_image_format = FREENECT_VIDEO_IR_8BIT;
-  }
-  if (key == 'x') {
-    freenect_angle--;
-    if (freenect_angle < -30) {
-      freenect_angle = -30;
-    }
-  }
-  if (key == '1') {
-    freenect_set_led(f_dev,LED_GREEN);
-  }
-  if (key == '2') {
-    freenect_set_led(f_dev,LED_RED);
-  }
-  if (key == '3') {
-    freenect_set_led(f_dev,LED_YELLOW);
-  }
-  if (key == '4') {
-    freenect_set_led(f_dev,LED_BLINK_YELLOW);
-  }
-  if (key == '5') {
-    freenect_set_led(f_dev,LED_BLINK_GREEN);
-  }
-  if (key == '6') {
-    freenect_set_led(f_dev,LED_BLINK_RED_YELLOW);
-  }
-  if (key == '0') {
-    freenect_set_led(f_dev,LED_OFF);
-  }
-  freenect_set_tilt_degs(f_dev,freenect_angle);
-}
-
-uint16_t t_gamma[2048];
-#endif
 
 static void
 populate_status_t(state_t* state, kinect_status_t* msg, int64_t timestamp)
@@ -188,6 +137,7 @@ rate_t* rate_new(double target_hz)
 {
   rate_t* rt = (rate_t *) calloc(1,sizeof(rate_t));
   rt->target_hz = target_hz;
+  rt->tick_count = 0;
   return rt;
 }
 
@@ -212,6 +162,7 @@ int rate_check(rate_t* rate)
     // otherwise, update current_hz with a exponential moving average, and return 1
     rate->current_hz = p_framerate;
     rate->last_tick = c_utime;
+    rate->tick_count++;
     return 1;
   }
 }
@@ -223,49 +174,68 @@ void cmd_cb(const lcm_recv_buf_t *rbuf __attribute__((unused)),
 {
   state_t *self = (state_t *)user;
 
-  static kinect_cmd_t *static_msg = NULL;
-
-  if(static_msg !=NULL)
-    kinect_cmd_t_destroy(static_msg);
-  static_msg = kinect_cmd_t_copy(msg);
-
-  if(static_msg->type == KINECT_CMD_T_SET_TILT) {
-    dbg("Received tilt command; Angle : %d\n", static_msg->tilt_degree);
-    self->freenect_angle = static_msg->tilt_degree;
+  if(msg->command_type == KINECT_CMD_T_SET_TILT) {
+    dbg("Received tilt command; Angle : %d\n", msg->tilt_degree);
+    self->freenect_angle = msg->tilt_degree;
 
     if(self->freenect_angle > 30)
       self->freenect_angle = 30;
     else if(self->freenect_angle < -20)
       self->freenect_angle = -20;
 
+    // XXX is libfreenect thread-safe?
     freenect_set_tilt_degs(self->f_dev,self->freenect_angle);
-  } else if(static_msg->type == KINECT_CMD_T_SET_LED) {
-    //check if between 0 and 6
-    if( static_msg->led_status >=0 && static_msg->led_status <=6) {
-      freenect_set_led(self->f_dev, static_msg->led_status);
+  } else if(msg->command_type == KINECT_CMD_T_SET_LED) {
+    // check that requested LED status is valid
+    if(msg->led_status >=0 && msg->led_status <=6) {
+      // XXX is libfreenect thread-safe?
+      freenect_set_led(self->f_dev, msg->led_status);
     }
-  } else if(static_msg->type == KINECT_CMD_T_SET_DEPTH_DATA_FORMAT) {
-    if( static_msg->depth_data_format >=0 && static_msg->depth_data_format < 4) {
-      self->requested_depth_format = static_msg->depth_data_format;
+  } else if(msg->command_type == KINECT_CMD_T_SET_DEPTH_DATA_FORMAT) {
+    // check that requested depth format is valid
+    if(msg->depth_data_format >=0 && msg->depth_data_format < 4) {
+      self->requested_depth_format = msg->depth_data_format;
     } 
-  } else if(static_msg->type == KINECT_CMD_T_SET_IMAGE_DATA_FORMAT) {
-    if( static_msg->image_data_format == KINECT_CMD_T_VIDEO_RGB ||
-        static_msg->image_data_format == KINECT_CMD_T_VIDEO_BAYER ||
-        static_msg->image_data_format == KINECT_CMD_T_VIDEO_IR_8BIT ||
-        static_msg->image_data_format == KINECT_CMD_T_VIDEO_IR_10BIT ||
-        static_msg->image_data_format == KINECT_CMD_T_VIDEO_IR_10BIT_PACKED ||
-        static_msg->image_data_format == KINECT_CMD_T_VIDEO_YUV_RGB ||
-        static_msg->image_data_format == KINECT_CMD_T_VIDEO_YUV_RAW ||
-        static_msg->image_data_format == KINECT_CMD_T_VIDEO_JPEG) {
-      self->requested_image_format = static_msg->image_data_format;
-    } 
+  } else if(msg->command_type == KINECT_CMD_T_SET_IMAGE_DATA_FORMAT) {
+    switch(msg->image_data_format) {
+      case KINECT_IMAGE_DATA_T_VIDEO_RGB:
+        self->requested_image_format = FREENECT_VIDEO_RGB;
+        self->use_jpeg = 0;
+        break;
+      case KINECT_IMAGE_DATA_T_VIDEO_BAYER:
+        self->requested_image_format = FREENECT_VIDEO_BAYER;
+        break;
+      case KINECT_IMAGE_DATA_T_VIDEO_IR_8BIT:
+        self->requested_image_format = FREENECT_VIDEO_IR_8BIT;
+        break;
+      case KINECT_IMAGE_DATA_T_VIDEO_IR_10BIT:
+        self->requested_image_format = FREENECT_VIDEO_IR_10BIT;
+        break;
+      case KINECT_IMAGE_DATA_T_VIDEO_IR_10BIT_PACKED:
+        self->requested_image_format = FREENECT_VIDEO_IR_10BIT_PACKED;
+        break;
+      case KINECT_IMAGE_DATA_T_VIDEO_YUV_RGB:
+        self->requested_image_format = FREENECT_VIDEO_YUV_RGB;
+        break;
+      case KINECT_IMAGE_DATA_T_VIDEO_YUV_RAW:
+        self->requested_image_format = FREENECT_VIDEO_YUV_RAW;
+        break;
+      case KINECT_IMAGE_DATA_T_VIDEO_RGB_JPEG:
+        self->requested_image_format = FREENECT_VIDEO_RGB;
+        self->use_jpeg = 1;
+        break;
+      default:
+        fprintf(stderr, "Invalid image format requested: %d\n", 
+            msg->image_data_format);
+        break;
+    }
   }
 }
 
 void depth_cb(freenect_device *dev, void *data, uint32_t timestamp)
 {
   state_t* state = (state_t*) freenect_get_user(dev);
-  if(!rate_check(state->depth_rate)) {
+  if(state->depth_rate && !rate_check(state->depth_rate)) {
     return;
   }
   int64_t host_utime = timestamp_now();
@@ -295,8 +265,20 @@ void depth_cb(freenect_device *dev, void *data, uint32_t timestamp)
       break;
   }
 
-  assert(state->depth_msg.depth_data_nbytes < state->depth_buf_size);
-  memcpy(state->depth_buf, data, state->depth_msg.depth_data_nbytes);
+  if(state->use_zlib) {
+      int uncompressed_size = state->depth_msg.depth_data_nbytes;
+      unsigned long compressed_size = state->depth_buf_size;
+      compress2(state->depth_buf, &compressed_size, data, uncompressed_size, Z_BEST_SPEED);
+      state->depth_msg.depth_data_nbytes = (int)compressed_size;
+      state->depth_msg.compression = KINECT_DEPTH_DATA_T_COMPRESSION_ZLIB;
+      state->depth_msg.uncompressed_size = uncompressed_size;
+  } else {
+      assert(state->depth_msg.depth_data_nbytes < state->depth_buf_size);
+      memcpy(state->depth_buf, data, state->depth_msg.depth_data_nbytes);
+      state->depth_msg.compression = KINECT_DEPTH_DATA_T_COMPRESSION_NONE;
+      state->depth_msg.uncompressed_size = state->depth_msg.depth_data_nbytes;
+  }
+
   state->have_depth++;
 }
 
@@ -307,7 +289,7 @@ void image_cb(freenect_device *dev, void *data, uint32_t timestamp)
   if(state->skip_img)
     return;
 
-  if(!rate_check(state->img_rate)){
+  if(state->img_rate && !rate_check(state->img_rate)){
     return;
   }
 
@@ -316,7 +298,7 @@ void image_cb(freenect_device *dev, void *data, uint32_t timestamp)
 
   switch(state->current_image_format) {
     case FREENECT_VIDEO_RGB:
-      state->image_msg.image_data_nbytes =  FREENECT_VIDEO_RGB_SIZE;
+      state->image_msg.image_data_nbytes = FREENECT_VIDEO_RGB_SIZE;
       state->image_msg.image_data_format = KINECT_IMAGE_DATA_T_VIDEO_RGB;
       break;
     case FREENECT_VIDEO_BAYER:
@@ -348,8 +330,27 @@ void image_cb(freenect_device *dev, void *data, uint32_t timestamp)
       state->image_msg.image_data_format = -1;
       break;
   }
-  assert(state->image_msg.image_data_nbytes < state->image_buf_size);
-  memcpy(state->image_buf, data, state->image_msg.image_data_nbytes);
+
+  if(state->use_jpeg && state->current_image_format == FREENECT_VIDEO_RGB) {
+    int compressed_size = state->image_buf_size;
+#if 0
+    int compression_status = jpeg_compress_8u_rgb (data, 640, 480, 640*3,
+        state->image_buf, &compressed_size, state->jpeg_quality);
+#else
+    int compression_status = jpegijg_compress_8u_rgb (data, 640, 480, 640*3,
+        state->image_buf, &compressed_size, state->jpeg_quality);
+#endif
+
+    if(0 != compression_status) {
+      fprintf(stderr, "JPEG compression failed...\n");
+    }
+    state->image_msg.image_data_nbytes = compressed_size;
+    state->image_msg.image_data_format = KINECT_IMAGE_DATA_T_VIDEO_RGB_JPEG;
+
+  } else {
+    assert(state->image_msg.image_data_nbytes < state->image_buf_size);
+    memcpy(state->image_buf, data, state->image_msg.image_data_nbytes);
+  }
   state->have_img++;
 }
 
@@ -397,6 +398,14 @@ freenect_threadfunc(void *user_data)
       freenect_start_depth(state->f_dev);
       state->current_depth_format = state->requested_depth_format;
     }
+
+    if(rate_check(state->report_rate)) {
+      printf("Image: %6"PRId64" (%.2fHz)  Depth: %6"PRId64" (%.2fHz)\n", 
+          state->img_rate->tick_count,
+          state->img_rate->current_hz,
+          state->depth_rate->tick_count,
+          state->depth_rate->current_hz);
+    }
   }
 
   printf("\nshutting down streams...\n");
@@ -413,11 +422,16 @@ freenect_threadfunc(void *user_data)
 
 static void usage(const char* progname)
 {
-  fprintf (stderr, "Usage: %s [-v] [-c] [-d] [-p]\n\
-      Options:\n\
-      -r     [rate] Throttle publishing\n \
-      -i     Ignore images\n\
-      -h     This help message\n", g_path_get_basename(progname));
+  fprintf (stderr, "Usage: %s [options]\n"
+                   "\n"
+                   "Options:\n"
+                   "  -r RATE   Throttle publishing to RATE Hz.\n"
+//                   "  -d        Do not publish depth images\n"
+                   "  -i        Do not publish RGB/infrared images\n"
+                   "  -j        JPEG-compress RGB images\n"
+                   "  -q QUAL   JPEG compression quality (0-100, default 94)\n"
+                   "  -h        This help message\n", 
+                   g_path_get_basename(progname));
   exit(1);
 }
 
@@ -425,26 +439,56 @@ int main(int argc, char **argv)
 {
   state_t *state = (state_t*)calloc(1, sizeof(state_t));
 
-  int c;
-  double target_rate = 0;
+  double target_rate = INFINITY;
 
   state->skip_img = 0;
   state->throttle = 0;
   state->depth_rate = NULL;
   state->img_rate = NULL;
 
-  //command line options - to throtle - to ignore image publish  
-  while ((c = getopt (argc, argv, "hir:")) >= 0) {
+  state->freenect_thread = NULL;
+  state->die = 0;
+
+  state->f_ctx = NULL;
+  state->f_dev = NULL;
+  state->freenect_angle = 0;
+  state->freenect_led = 0;
+
+  state->use_jpeg = 0;
+  state->jpeg_quality = 94;
+
+  // make these configurable - either/both from the command line and from outside LCM command
+  state->requested_image_format = FREENECT_VIDEO_RGB;
+  state->requested_depth_format = FREENECT_DEPTH_11BIT_PACKED;
+  state->requested_led = LED_RED;
+  state->current_image_format = state->requested_image_format;
+  state->current_depth_format = state->requested_depth_format;
+  state->current_led = state->requested_led;
+
+  int c;
+  // command line options - to throtle - to ignore image publish  
+  while ((c = getopt (argc, argv, "hir:jq:z")) >= 0) {
     switch (c) {
       case 'i': //ignore images 
         state->skip_img = 1;
         dbg("Skipping image publishing\n");
         break;
+      case 'j':
+        state->use_jpeg = 1;
+        printf("JPEG compressing RGB data\n");
+        break;
+      case 'q':
+        state->jpeg_quality = atoi(optarg);
+        if(state->jpeg_quality < 0 || state->jpeg_quality > 100)
+          usage(argv[0]);
+        break;
+      case 'z':
+        state->use_zlib = 1;
+        printf("ZLib compressing depth data\n");
+        break;
       case 'r':
         target_rate = strtod (optarg,NULL);
-        dbg("Target Rate is : %f\n", target_rate); 
-        state->depth_rate = rate_new(target_rate);
-        state->img_rate = rate_new(target_rate);
+        printf("Target Rate is : %f Hz\n", target_rate); 
         state->throttle = 1;
         break;
 
@@ -456,37 +500,27 @@ int main(int argc, char **argv)
     }
   }
 
-  state->freenect_thread = NULL;
-  state->die = 0;
-
-  state->f_ctx = NULL;
-  state->f_dev = NULL;
-  state->freenect_angle = 0;
-  state->freenect_led = 0;
-
-  //make these configurable - either/both from the command line and from outside lcm command
-  state->requested_image_format = FREENECT_VIDEO_RGB;
-  state->requested_depth_format = FREENECT_DEPTH_11BIT;
-  state->requested_led = LED_RED;
-  state->current_image_format = state->requested_image_format;
-  state->current_depth_format = state->requested_depth_format;
-  state->current_led = state->requested_led;
-
   // 
   int user_device_number = 0;
   if (argc > 1)
     user_device_number = atoi(argv[1]);
 
+  // throttling
+  state->depth_rate = rate_new(target_rate);
+  state->img_rate = rate_new(target_rate);
+
   // allocate image and depth buffers
   state->image_data   = (uint8_t*) malloc(640*480*4);
 
-  state->image_buf_size = 640 * 480 * 4;
+  // allocate more space for the image buffer, as we might use it for compressed data
+  state->image_buf_size = 640 * 480 * 10;
   state->image_buf = (uint8_t*) malloc(state->image_buf_size);
   state->image_msg.image_data = state->image_buf;
   state->image_msg.width = FREENECT_FRAME_W;
   state->image_msg.height = FREENECT_FRAME_H;
 
-  state->depth_buf_size = 640 * 480 * sizeof(int16_t);
+  // allocate more space for the depth buffer, as we might use it for compressed data
+  state->depth_buf_size = 640 * 480 * sizeof(int16_t) * 4;
   state->depth_buf = (uint8_t*) malloc(state->depth_buf_size);
   state->depth_msg.depth_data = state->depth_buf;
   state->depth_msg.width = FREENECT_FRAME_W;
@@ -494,6 +528,8 @@ int main(int argc, char **argv)
 
   state->have_depth = 0;
   state->have_img = 0;
+
+  state->report_rate = rate_new(1.0);
 
   // initialize LCM
   state->image_channel = g_strdup("KINECT_IMAGE");
@@ -527,12 +563,14 @@ int main(int argc, char **argv)
 
   freenect_set_user(state->f_dev, state);
 
-  state->clocksync = timestamp_sync_init(1000000, 0xFFFFFFFF, 1.05);
-
-  //kinect command handler
-  kinect_cmd_t_subscribe(state->lcm, "KINECT_CMD", cmd_cb, state);
+  // setup passive time synchronization so we can guess the true image
+  // acquisition times
+  state->clocksync = timestamp_sync_init(1000000, 0xFFFFFFFFLL, 1.001);
 
   g_thread_init(NULL);
+
+  // subscribe to kinect command messages
+  kinect_cmd_t_subscribe(state->lcm, "KINECT_CMD", cmd_cb, state);
 
   GError *thread_err = NULL;
   state->freenect_thread = g_thread_create(freenect_threadfunc, state, TRUE, &thread_err);
@@ -540,8 +578,6 @@ int main(int argc, char **argv)
     fprintf(stderr, "Error creating thread: %s\n", thread_err->message);
     return 1;
   }
-
-  // TODO subscribe to kinect command messages...
 
   while(!state->die) {
     lcm_handle(state->lcm);

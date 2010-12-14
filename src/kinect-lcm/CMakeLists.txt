@@ -1,11 +1,12 @@
 add_definitions(-Wall)
 
-add_executable(kinect-lcm main.c timestamp.c)
+add_executable(kinect-lcm main.c timestamp.c jpeg-utils-ijg.c)
 
 add_executable(test-sender test_sender.c timestamp.c)
 
 target_link_libraries(kinect-lcm 
     freenect
+    jpeg
     ${LCMTYPES_LIBS})
 
 target_link_libraries(test-sender
@@ -14,7 +15,9 @@ target_link_libraries(test-sender
 pods_use_pkg_config_packages(kinect-lcm
     libusb-1.0
     glib-2.0
-    lcm)
+    lcm
+    #    jpeg-utils
+    zlib)
 
 pods_use_pkg_config_packages(test-sender
     lcm)
