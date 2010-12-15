@@ -5,12 +5,24 @@
     </maintainers>
 
     <summary>
+        Kinect LCM driver.
     </summary>
 
     <description>
+        Kinect LCM driver.
+
         uses libfreenect, imported on Wed. Dec 8, 2010.
     </description>
 
     <requirements>
+        libfreenect requirements:
+            libusb-1.0
+
+        OpenGL
+        GLUT
+        LCM (http://lcm.googlecode.com)
+
+        Optional:
+            libbot2 (https://svn.csail.mit.edu/libbot2)
     </requirements>
 </pod>
