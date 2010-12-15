@@ -83,6 +83,7 @@ typedef struct _state_t {
   int have_img;
   int have_depth;
   int skip_img;
+  int skip_depth;
   int throttle; //1 in data skip will be published
   timestamp_sync_state_t* clocksync;
 
@@ -239,6 +240,10 @@ void cmd_cb(const lcm_recv_buf_t *rbuf __attribute__((unused)),
 void depth_cb(freenect_device *dev, void *data, uint32_t timestamp)
 {
   state_t* state = (state_t*) freenect_get_user(dev);
+
+  if(state->skip_depth)
+    return;
+
   if(state->depth_rate && !rate_check(state->depth_rate)) {
     return;
   }
@@ -358,6 +363,8 @@ void image_cb(freenect_device *dev, void *data, uint32_t timestamp)
   state->have_img++;
 }
 
+//int freenect_write_register(freenect_device *dev, uint16_t reg, uint16_t data);
+
 static void *
 freenect_threadfunc(void *user_data)
 {
@@ -372,6 +379,14 @@ freenect_threadfunc(void *user_data)
   freenect_set_depth_format(state->f_dev, state->current_depth_format);
   freenect_set_video_buffer(state->f_dev, state->image_data);
 
+//  if(state->img_rate->target_hz <= 15) {
+//    int rval = (int)ceil(state->img_rate->target_hz);
+//    int st = freenect_write_register(state->f_dev, 0xE, rval);
+//    printf("Decreasing RGB framerate to %d: %d\n", rval, st);
+//    st = freenect_write_register(state->f_dev, 0x14, rval);
+//    printf("Decreasing depth framerate to %d: %d\n", rval, st);
+//  }
+
   freenect_start_depth(state->f_dev);
   freenect_start_video(state->f_dev);
 
@@ -383,7 +398,7 @@ freenect_threadfunc(void *user_data)
       populate_status_t(state, &state->image_msg.status, state->image_msg.timestamp);
       kinect_image_data_t_publish(state->lcm, state->image_channel, &state->image_msg);
       state->have_img = 0;
-    } else if(state->have_depth){
+    } else if(state->have_depth && !state->skip_depth){
       populate_status_t(state, &state->depth_msg.status, state->depth_msg.timestamp);
       kinect_depth_data_t_publish(state->lcm, state->depth_channel, &state->depth_msg);
       state->have_depth = 0;
@@ -430,10 +445,11 @@ static void usage(const char* progname)
                    "\n"
                    "Options:\n"
                    "  -r RATE   Throttle publishing to RATE Hz.\n"
-//                   "  -d        Do not publish depth images\n"
+                   "  -d        Do not publish depth images\n"
                    "  -i        Do not publish RGB/infrared images\n"
                    "  -j        JPEG-compress RGB images\n"
                    "  -q QUAL   JPEG compression quality (0-100, default 94)\n"
+                   "  -z        ZLib compress depth images\n"
                    "  -h        This help message\n", 
                    g_path_get_basename(progname));
   exit(1);
@@ -446,6 +462,7 @@ int main(int argc, char **argv)
   double target_rate = INFINITY;
 
   state->skip_img = 0;
+  state->skip_depth = 0;
   state->throttle = 0;
   state->depth_rate = NULL;
   state->img_rate = NULL;
@@ -471,11 +488,15 @@ int main(int argc, char **argv)
 
   int c;
   // command line options - to throtle - to ignore image publish  
-  while ((c = getopt (argc, argv, "hir:jq:z")) >= 0) {
+  while ((c = getopt (argc, argv, "hdir:jq:z")) >= 0) {
     switch (c) {
       case 'i': //ignore images 
         state->skip_img = 1;
-        dbg("Skipping image publishing\n");
+        dbg("Skipping RGB image publishing\n");
+        break;
+      case 'd':
+        state->skip_depth = 1;
+        dbg("Skipping depth publishing\n");
         break;
       case 'j':
         state->use_jpeg = 1;
@@ -492,7 +513,7 @@ int main(int argc, char **argv)
         break;
       case 'r':
         target_rate = strtod (optarg,NULL);
-        printf("Target Rate is : %f Hz\n", target_rate); 
+        printf("Target Rate is : %.3f Hz\n", target_rate); 
         state->throttle = 1;
         break;
 

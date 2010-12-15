@@ -8,6 +8,7 @@ target_link_libraries(kinect-lcm
     freenect
     jpeg
     z
+    m
     ${LCMTYPES_LIBS})
 
 target_link_libraries(test-sender

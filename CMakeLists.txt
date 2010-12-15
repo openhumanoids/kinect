@@ -20,5 +20,9 @@ include_directories(${LCMTYPES_INCLUDE_DIRS}
 # build LCM kinect utility
 add_subdirectory(src/kinect-lcm)
 
-# Visualization tool and bot2-vis renderer
+# simple GLUT visualization tool
+add_subdirectory(src/kinect-glview)
+
+# bot2-vis renderer and viewer
 add_subdirectory(src/kinect-renderer)
+
