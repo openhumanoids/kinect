@@ -149,6 +149,14 @@ on_depth_data(const lcm_recv_buf_t* lcm, const char* channel, const kinect_depth
 
     int npixels = width * height;
 	for (i=0; i<npixels; i++) {
+#if 0
+        int max = 2048;
+        int min = 800;
+        int p = (int)(255 * (depth[i] - min) / (max - min));
+        depth_img[i*3 + 0] = p;
+        depth_img[i*3 + 1] = p;
+        depth_img[i*3 + 2] = p;
+#else
 		int pval = t_gamma[depth[i]];
 		int lb = pval & 0xff;
 		switch (pval>>8) {
@@ -188,6 +196,7 @@ on_depth_data(const lcm_recv_buf_t* lcm, const char* channel, const kinect_depth
 				depth_img[3*i+2] = 0;
 				break;
 		}
+#endif
 	}
 	got_depth++;
 }

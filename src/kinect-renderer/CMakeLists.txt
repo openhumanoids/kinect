@@ -8,12 +8,15 @@ endif(NOT BOT2_VIS_FOUND)
 add_definitions(-Wall -std=gnu99)
 
 add_library(kinect-render SHARED 
-    kinect_renderer.c)
+    kinect_renderer.c
+    jpeg-utils-ijg.c
+    )
 
 add_executable(kinect-viewer main.c)
 
 target_link_libraries(kinect-viewer 
     kinect-render
+    jpeg
     ${LCMTYPES_LIBS})
 
 pods_use_pkg_config_packages(kinect-viewer

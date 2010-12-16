@@ -8,6 +8,8 @@
 #include <lcmtypes/kinect_image_data_t.h>
 #include <lcmtypes/kinect_depth_data_t.h>
 
+#include "jpeg-utils-ijg.h"
+
 typedef struct _KinectRenderer {
     BotRenderer renderer;
     BotGtkParamWidget *pw;
@@ -20,20 +22,20 @@ typedef struct _KinectRenderer {
     int width;
     int height;
 
-    // depth data, in meters.
-    float* xyz;
+    // raw disparity
+    uint16_t* disparity;
     int need_to_recompute_frame_data;
 
     uint8_t* uncompress_buffer;
     int uncompress_buffer_size;
 
-    int depth_lut_size;
-    float* depth_lut_11bit;
+    uint8_t* rgb_data;
 } KinectRenderer;
 
 static void
-recompute_frame_data_data(KinectRenderer* self);
+recompute_frame_data(KinectRenderer* self);
 
+#if 0
 /** Given an array of colors, a palette is created that linearly interpolates through all the colors. **/
 static void color_util_build_color_table(double color_palette[][3], int palette_size, float lut[][3], int lut_size)
 {
@@ -75,43 +77,10 @@ static inline float *color_util_jet(double v)
     int idx = (JET_COLORS_LUT_SIZE - 1) * v;
     return jet_colors[idx];
 }
+#endif
 
 static void
-compute_lookup_tables(KinectRenderer* self)
-{
-    int raw_disparity;
-    self->depth_lut_size = 2048;
-    self->depth_lut_11bit = (float*) malloc(self->depth_lut_size * sizeof(float));
-
-    for(raw_disparity=0; raw_disparity<self->depth_lut_size; raw_disparity++) {
-        self->depth_lut_11bit[raw_disparity] = 0.1236 * tan(raw_disparity / 2842.5 + 1.1863);
-    }
-
-    // TODO replace these with calibrated values
-    double fx_d = 5.9421434211923247e+02;
-    double fy_d = 5.9104053696870778e+02;
-    double cx_d = 3.3930780975300314e+02;
-    double cy_d = 2.4273913761751615e+02;
-//    double k1_d = -2.6386489753128833e-01;
-//    double k2_d = 9.9966832163729757e-01;
-//    double p1_d = -7.6275862143610667e-04;
-//    double p2_d = 5.0350940090814270e-03;
-//    double k3_d = -1.3053628089976321e+00;
-
-    int pind = 0;
-    for(int v=0; v<self->height; v++) {
-        for(int u=0; u<self->width; u++) {
-            self->xyz[pind*3+0] = (u - cx_d) / fx_d;
-            self->xyz[pind*3+1] = (v - cy_d) / fy_d;
-            self->xyz[pind*3+2] = 1;
-            pind++;
-        }
-    }
-
-}
-
-static void
-recompute_frame_data_data(KinectRenderer* self)
+recompute_frame_data(KinectRenderer* self)
 {
     if(!self->depth_msg) {
         self->need_to_recompute_frame_data = 0;
@@ -143,10 +112,7 @@ recompute_frame_data_data(KinectRenderer* self)
                 int i;
                 for(i=0; i<npixels; i++) {
                     int d = rdd[i];
-                    if(d >= 0 && d < self->depth_lut_size)
-                        self->xyz[i*3+2] = self->depth_lut_11bit[d];
-                    else
-                        self->xyz[i*3+2] = 0;
+                    self->disparity[i] = d;
                 }
             } else {
                 fprintf(stderr, "Big endian systems not supported\n");
@@ -157,7 +123,6 @@ recompute_frame_data_data(KinectRenderer* self)
             break;
         case KINECT_DEPTH_DATA_T_DEPTH_11BIT_PACKED:
             if(G_BYTE_ORDER == G_LITTLE_ENDIAN) {
-                int16_t disparity;
                 int mask = (1 << 11) - 1;
                 uint32_t buffer = 0;
                 int bitsIn = 0;
@@ -169,12 +134,7 @@ recompute_frame_data_data(KinectRenderer* self)
                         bitsIn += 8;
                     }
                     bitsIn -= 11;
-                    disparity = (buffer >> bitsIn) & mask;
-
-                    if(disparity >= 0 && disparity < self->depth_lut_size)
-                        self->xyz[i*3+2] = self->depth_lut_11bit[disparity];
-                    else
-                        self->xyz[i*3+2] = 0;
+                    self->disparity[i] = (buffer >> bitsIn) & mask;
                 }
             } else {
                 fprintf(stderr, "Big endian systems not supported\n");
@@ -188,137 +148,6 @@ recompute_frame_data_data(KinectRenderer* self)
     }
 }
 
-#if 0
-int window;
-GLuint gl_rgb_tex;
-int mx=-1,my=-1;        // Prevous mouse coordinates
-int rotangles[2] = {0}; // Panning angles
-float zoom = 1;         // zoom factor
-int color = 1;          // Use the RGB texture or just draw it as color
-
-// Do the projection from u,v,depth to X,Y,Z directly in an opengl matrix
-// These numbers come from a combination of the ros kinect_node wiki, and
-// nicolas burrus' posts.
-void LoadVertexMatrix()
-{
-	float f = 590.0f;
-	float a = -0.0030711f;
-	float b = 3.3309495f;
-	float cx = 340.0f;
-	float cy = 240.0f;
-	GLfloat mat[16] = {
-		1/f,     0,  0, 0,
-		0,    -1/f,  0, 0,
-		0,       0,  0, a,
-		-cx/f,cy/f, -1, b
-	};
-	glMultMatrixf(mat);
-}
-
-
-// This matrix comes from a combination of nicolas burrus's calibration post
-// and some python code I haven't documented yet.
-void LoadRGBMatrix()
-{
-	float mat[16] = {
-		  5.34866271e+02,   3.89654806e+00,   0.00000000e+00,   1.74704200e-02,
-		 -4.70724694e+00,  -5.28843603e+02,   0.00000000e+00,  -1.22753400e-02,
-		 -3.19670762e+02,  -2.60999685e+02,   0.00000000e+00,  -9.99772000e-01,
-		 -6.98445586e+00,   3.31139785e+00,   0.00000000e+00,   1.09167360e-02
-	};
-	glMultMatrixf(mat);
-}
-
-void mouseMoved(int x, int y)
-{
-	if (mx>=0 && my>=0) {
-		rotangles[0] += y-my;
-		rotangles[1] += x-mx;
-	}
-	mx = x;
-	my = y;
-}
-
-void mousePress(int button, int state, int x, int y)
-{
-	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
-		mx = x;
-		my = y;
-	}
-	if (button == GLUT_LEFT_BUTTON && state == GLUT_UP) {
-		mx = -1;
-		my = -1;
-	}
-}
-
-void DrawGLScene()
-{
-	short *depth = 0;
-	char *rgb = 0;
-	uint32_t ts;
-	if (freenect_sync_get_depth((void**)&depth, &ts) < 0)
-		return;
-	if (freenect_sync_get_rgb((void**)&rgb, &ts) < 0) {
-		free(depth);
-		return;
-	}
-
-	static unsigned int indices[480][640];
-	static short xyz[480][640][3];
-	int i,j;
-	for (i = 0; i < 480; i++) {
-		for (j = 0; j < 640; j++) {
-			xyz[i][j][0] = j;
-			xyz[i][j][1] = i;
-			xyz[i][j][2] = depth[i*640+j];
-			indices[i][j] = i*640+j;
-		}
-	}
-
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glLoadIdentity();
-
-	glPushMatrix();
-	glScalef(zoom,zoom,1);
-	glTranslatef(0,0,-3.5);
-	glRotatef(rotangles[0], 1,0,0);
-	glRotatef(rotangles[1], 0,1,0);
-	glTranslatef(0,0,1.5);
-
-	LoadVertexMatrix();
-
-	// Set the projection from the XYZ to the texture image
-	glMatrixMode(GL_TEXTURE);
-	glLoadIdentity();
-	glScalef(1/640.0f,1/480.0f,1);
-	LoadRGBMatrix();
-	LoadVertexMatrix();
-	glMatrixMode(GL_MODELVIEW);
-
-	glPointSize(1);
-
-	glEnableClientState(GL_VERTEX_ARRAY);
-	glVertexPointer(3, GL_SHORT, 0, xyz);
-	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-	glTexCoordPointer(3, GL_SHORT, 0, xyz);
-
-	if (color)
-		glEnable(GL_TEXTURE_2D);
-	glBindTexture(GL_TEXTURE_2D, gl_rgb_tex);
-	glTexImage2D(GL_TEXTURE_2D, 0, 3, 640, 480, 0, GL_RGB, GL_UNSIGNED_BYTE, rgb);
-
-	glPointSize(2.0f);
-	glDrawElements(GL_POINTS, 640*480, GL_UNSIGNED_INT, indices);
-	glPopMatrix();
-	glDisable(GL_TEXTURE_2D);
-
-	free(rgb);
-	free(depth);
-
-	glutSwapBuffers();
-}
-#endif
-
 static void 
 on_kinect_image (const lcm_recv_buf_t *rbuf, const char *channel,
         const kinect_image_data_t *msg, void *user_data )
@@ -328,6 +157,16 @@ on_kinect_image (const lcm_recv_buf_t *rbuf, const char *channel,
     if(self->image_msg)
         kinect_image_data_t_destroy(self->image_msg);
     self->image_msg = kinect_image_data_t_copy(msg);
+
+    // TODO check width, height
+
+    if(msg->image_data_format == KINECT_IMAGE_DATA_T_VIDEO_RGB) {
+        memcpy(self->rgb_data, msg->image_data, 
+                self->width * self->height * 3);
+    } else if(msg->image_data_format == KINECT_IMAGE_DATA_T_VIDEO_RGB_JPEG) {
+        jpegijg_decompress_8u_rgb(msg->image_data, msg->image_data_nbytes,
+                self->rgb_data, self->width, self->height, self->width * 3);
+    }
 
     bot_viewer_request_redraw( self->viewer );
 }
@@ -356,6 +195,54 @@ static void on_param_widget_changed (BotGtkParamWidget *pw, const char *name, vo
     bot_viewer_request_redraw(self->viewer);
 }
 
+static inline void
+_matrix_multiply (const double *a, int a_nrows, int a_ncols,
+        const double *b, int b_nrows, int b_ncols,
+        double *result)
+{
+    int i, j, r;
+    assert (a_ncols == b_nrows);
+    for (i=0; i<a_nrows; i++) {
+        for (j=0; j<b_ncols; j++) {
+            double acc = 0;
+            for (r=0; r<a_ncols; r++) {
+                acc += a[i*a_ncols + r] * b[r*b_ncols + j];
+            }
+            result[i*b_ncols + j] = acc;
+        }
+    }
+}
+
+static inline void
+_matrix_vector_multiply_3x4_4d (const double m[12], const double v[4],
+        double result[3])
+{
+    result[0] = m[0]*v[0] + m[1]*v[1] + m[2] *v[2] + m[3] *v[3];
+    result[1] = m[4]*v[0] + m[5]*v[1] + m[6] *v[2] + m[7] *v[3];
+    result[2] = m[8]*v[0] + m[9]*v[1] + m[10]*v[2] + m[11]*v[3];
+}
+
+static inline void
+_matrix_transpose_4x4d (const double m[16], double result[16])
+{
+    result[0] = m[0];
+    result[1] = m[4];
+    result[2] = m[8];
+    result[3] = m[12];
+    result[4] = m[1];
+    result[5] = m[5];
+    result[6] = m[9];
+    result[7] = m[13];
+    result[8] = m[2];
+    result[9] = m[6];
+    result[10] = m[10];
+    result[11] = m[14];
+    result[12] = m[3];
+    result[13] = m[7];
+    result[14] = m[11];
+    result[15] = m[15];
+}
+
 static void _draw(BotViewer *viewer, BotRenderer *renderer)
 {
     KinectRenderer *self = (KinectRenderer*) renderer->user;
@@ -363,23 +250,95 @@ static void _draw(BotViewer *viewer, BotRenderer *renderer)
         return;
 
     if(self->need_to_recompute_frame_data)
-        recompute_frame_data_data(self);
+        recompute_frame_data(self);
 
     // rotate so that X is forward and Z is up
     glRotatef(-90, 0, 0, 1);
     glRotatef(-90, 1, 0, 0);
 
+    float so = 1101.5254;
+    float b = 0.07710;
+    float cx = 317.80483131;
+    float cy = 243.16590456;
+    float f = 579.97821782;
+
+    double depth_to_depth_xyz[] = {
+        1, 0, 0, -cx,
+        0, 1, 0, -cy,
+        0, 0, 0, f,
+        0, 0, 1/b, 0
+    };
+    double depth_to_rgb_rot_trans[] = {
+        0.999997, -0.002517, -0.000720, -0.025318, 
+        0.002518, 0.999995, 0.001772, 0.000415, 
+        0.000716, -0.001774, 0.999998, -0.011306,
+        0, 0, 0, 1
+    };
+    double cx_rgb = 322.60598443;
+    double cy_rgb = 262.56367112;
+    double k1_rgb = 0.17730118;
+    double k2_rgb = -0.35126598;
+    double f_rgb = 518.12282951;
+//    double p1_rgb = 0;
+//    double p2_rgb = 0;
+//    double k3_rgb = 0;
+
+    double rgb_k[] = {
+        f_rgb, 0, cx_rgb, 0,
+        0, f_rgb, cy_rgb, 0,
+        0, 0, 1, 0
+    };
+    double depth_to_rgb_xyz[16];
+    _matrix_multiply(depth_to_rgb_rot_trans, 4, 4, 
+            depth_to_depth_xyz, 4, 4, depth_to_rgb_xyz);
+    double depth_to_rgb_uvd[12];
+    _matrix_multiply(rgb_k, 3, 4, 
+            depth_to_rgb_xyz, 4, 4, 
+            depth_to_rgb_uvd);
+
+    double depth_to_depth_xyz_trans[16];
+    _matrix_transpose_4x4d(depth_to_depth_xyz, depth_to_depth_xyz_trans);
+    glPushMatrix();
+    glMultMatrixd(depth_to_depth_xyz_trans);
     glBegin(GL_POINTS);
     glColor3f(0, 0, 0);
-    for(int pind=0; pind<self->width*self->height; pind++) {
-        float x = self->xyz[pind*3+0] * self->xyz[pind*3+2];
-        float y = self->xyz[pind*3+1] * self->xyz[pind*3+2];
-        float z = self->xyz[pind*3+2];
-//        float* color = color_util_jet((y + 1.5) / 2);
-//        glColor3fv(color);
-        glVertex3f(x, y, z);
+    for(int u=0; u<self->width; u++) {
+        for(int v=0; v<self->height; v++) {
+            uint16_t disparity = self->disparity[v*self->width+u];
+            float d = 0.125 * (so - disparity);
+
+            double uvd_depth[4] = { u, v, d, 1 };
+            double uvd_rgb[3];
+            _matrix_vector_multiply_3x4_4d(depth_to_rgb_uvd, uvd_depth, uvd_rgb);
+
+            double u_rgb_undist = uvd_rgb[0] / uvd_rgb[2];
+            double v_rgb_undist = uvd_rgb[1] / uvd_rgb[2];
+
+            // compute distorted pixel coordinates
+            double du_rgb = (u_rgb_undist - cx_rgb) / f_rgb;
+            double dv_rgb = (v_rgb_undist - cy_rgb) / f_rgb;
+            double rad_rgb_2 = du_rgb*du_rgb + dv_rgb*dv_rgb;
+            double rad_rgb_4 = rad_rgb_2*rad_rgb_2;
+            double s = (1 + k1_rgb * rad_rgb_2 + k2_rgb * rad_rgb_4) * f_rgb;
+            int u_rgb = du_rgb * s + cx_rgb + 0.5;
+            int v_rgb = dv_rgb * s + cy_rgb + 0.5;
+
+            uint8_t r, g, b;
+            if(u_rgb >= self->width || u_rgb < 0 || v_rgb >= self->height || v_rgb < 0) {
+                r = g = b = 0;
+            } else {
+                r = self->rgb_data[v_rgb*self->width*3 + u_rgb*3 + 0];
+                g = self->rgb_data[v_rgb*self->width*3 + u_rgb*3 + 1];
+                b = self->rgb_data[v_rgb*self->width*3 + u_rgb*3 + 2];
+            }
+
+            glColor3f(r / 255.0, g / 255.0, b / 255.0);
+
+            glVertex3f(u, v, d);
+        }
     }
     glEnd();
+    glPopMatrix();
 }
 
 static void _free(BotRenderer *renderer)
@@ -394,7 +353,8 @@ static void _free(BotRenderer *renderer)
     free(self->uncompress_buffer);
     self->uncompress_buffer_size = 0;
 
-    free(self->xyz);
+    free(self->disparity);
+    free(self->rgb_data);
 
     free(self);
 }
@@ -407,13 +367,11 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, lcm_t* lcm, int priority)
     self->need_to_recompute_frame_data = 0;
     self->width = 640;
     self->height = 480;
-    self->xyz = (float*) malloc(self->width * self->height * 3 * sizeof(float));
+    self->disparity = (uint16_t*) malloc(self->width * self->height * sizeof(uint16_t));
+    self->rgb_data = (uint8_t*) malloc(self->width * self->height * 3);
 
     self->image_msg = NULL;
     self->depth_msg = NULL;
-
-    self->depth_lut_size = 0;
-    self->depth_lut_11bit = NULL;
 
     BotRenderer *renderer = &self->renderer;
 
@@ -431,8 +389,6 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, lcm_t* lcm, int priority)
     renderer->enabled = 1;
     renderer->user = self;
 
-    compute_lookup_tables(self);
-
     g_signal_connect (G_OBJECT (self->pw), "changed",
                       G_CALLBACK (on_param_widget_changed), self);
 
@@ -440,9 +396,4 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, lcm_t* lcm, int priority)
     kinect_depth_data_t_subscribe(self->lcm, "KINECT_DEPTH", on_kinect_depth, self);
 
     bot_viewer_add_renderer(viewer, renderer, priority);
-
-//    GtkWidget *clear_button = gtk_button_new_with_label("Clear All");
-//    gtk_box_pack_start(GTK_BOX(renderer->widget), clear_button, FALSE, FALSE, 0);
-//    g_signal_connect(G_OBJECT(clear_button), "clicked", G_CALLBACK(on_clear_button), self);
-//    gtk_widget_show_all(renderer->widget);
 }
