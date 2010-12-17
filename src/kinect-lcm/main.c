@@ -24,6 +24,7 @@
 #endif
 
 #include "timestamp.h"
+#include "pixels.h"
 
 #define dbg(...) fprintf(stderr, __VA_ARGS__)
 
@@ -54,18 +55,22 @@ typedef struct _state_t {
   int freenect_angle;
   int freenect_led;
 
-  freenect_video_format requested_image_format;
-  freenect_video_format current_image_format;
+  int8_t requested_image_format;
+  int8_t current_image_format;
 
-  freenect_depth_format requested_depth_format;
-  freenect_depth_format current_depth_format;
+  int8_t requested_depth_format;
+  int8_t current_depth_format;
 
   uint8_t* image_data;
 
   uint8_t* image_buf;
   int image_buf_size;
 
+  uint8_t* debayer_buf;
+  int debayer_buf_size;
+
   uint8_t* depth_buf;
+  int debayer_buf_stride;
   int depth_buf_size;
 
   freenect_raw_tilt_state* tilt_state;
@@ -93,7 +98,6 @@ typedef struct _state_t {
   int jpeg_buf_size;
 
   int jpeg_quality;
-  int use_jpeg;
 
   int use_zlib;
 
@@ -174,7 +178,62 @@ int rate_check(rate_t* rate)
   }
 }
 
-void cmd_cb(const lcm_recv_buf_t *rbuf __attribute__((unused)), 
+static void
+set_image_depth_formats(state_t* state)
+{
+  freenect_video_format vfmt;
+  freenect_depth_format dfmt;
+
+  switch(state->requested_image_format) {
+    case KINECT_IMAGE_DATA_T_VIDEO_RGB:
+      vfmt = FREENECT_VIDEO_BAYER;
+      state->msg.image.image_data_nbytes = FREENECT_VIDEO_RGB_SIZE;
+      break;
+    case KINECT_IMAGE_DATA_T_VIDEO_BAYER:
+      vfmt = FREENECT_VIDEO_BAYER;
+      state->msg.image.image_data_nbytes =  FREENECT_VIDEO_BAYER_SIZE;
+      break;
+    case KINECT_IMAGE_DATA_T_VIDEO_IR_8BIT:
+      vfmt = FREENECT_VIDEO_IR_8BIT;
+      state->msg.image.image_data_nbytes =  FREENECT_VIDEO_IR_8BIT_SIZE;
+      break;
+    case KINECT_IMAGE_DATA_T_VIDEO_IR_10BIT:
+      vfmt = FREENECT_VIDEO_IR_10BIT;
+      state->msg.image.image_data_nbytes =  FREENECT_VIDEO_IR_10BIT_SIZE;
+      break;
+    case KINECT_IMAGE_DATA_T_VIDEO_IR_10BIT_PACKED:
+      vfmt = FREENECT_VIDEO_IR_10BIT_PACKED;
+      state->msg.image.image_data_nbytes =  FREENECT_VIDEO_IR_10BIT_PACKED_SIZE;
+      break;
+    case KINECT_IMAGE_DATA_T_VIDEO_YUV_RAW:
+      vfmt = FREENECT_VIDEO_YUV_RAW;
+      state->msg.image.image_data_nbytes =  FREENECT_VIDEO_YUV_RAW_SIZE;
+      break;
+    case KINECT_IMAGE_DATA_T_VIDEO_RGB_JPEG:
+      vfmt = FREENECT_VIDEO_BAYER;
+      break;
+    default:
+      fprintf(stderr, "Invalid image format requested: %d\n", state->requested_image_format);
+      state->msg.image.image_data_nbytes = 0;
+      break;
+  }
+
+  // TODO
+  dfmt = state->requested_depth_format;
+//  switch(state->requested_depth_format) {
+//
+//  }
+
+  state->current_image_format = state->requested_image_format;
+  state->msg.image.image_data_format = state->requested_image_format;
+  state->current_depth_format = state->requested_depth_format;
+  freenect_set_video_format(state->f_dev, state->current_image_format);
+  freenect_set_depth_format(state->f_dev, state->current_depth_format);
+
+}
+
+void 
+cmd_cb(const lcm_recv_buf_t *rbuf __attribute__((unused)), 
       const char *channel __attribute__((unused)), 
       const kinect_cmd_t *msg,
       void *user)
@@ -204,35 +263,7 @@ void cmd_cb(const lcm_recv_buf_t *rbuf __attribute__((unused)),
       self->requested_depth_format = msg->depth_data_format;
     } 
   } else if(msg->command_type == KINECT_CMD_T_SET_IMAGE_DATA_FORMAT) {
-    switch(msg->image_data_format) {
-      case KINECT_IMAGE_DATA_T_VIDEO_RGB:
-        self->requested_image_format = FREENECT_VIDEO_RGB;
-        self->use_jpeg = 0;
-        break;
-      case KINECT_IMAGE_DATA_T_VIDEO_BAYER:
-        self->requested_image_format = FREENECT_VIDEO_BAYER;
-        break;
-      case KINECT_IMAGE_DATA_T_VIDEO_IR_8BIT:
-        self->requested_image_format = FREENECT_VIDEO_IR_8BIT;
-        break;
-      case KINECT_IMAGE_DATA_T_VIDEO_IR_10BIT:
-        self->requested_image_format = FREENECT_VIDEO_IR_10BIT;
-        break;
-      case KINECT_IMAGE_DATA_T_VIDEO_IR_10BIT_PACKED:
-        self->requested_image_format = FREENECT_VIDEO_IR_10BIT_PACKED;
-        break;
-      case KINECT_IMAGE_DATA_T_VIDEO_YUV_RAW:
-        self->requested_image_format = FREENECT_VIDEO_YUV_RAW;
-        break;
-      case KINECT_IMAGE_DATA_T_VIDEO_RGB_JPEG:
-        self->requested_image_format = FREENECT_VIDEO_RGB;
-        self->use_jpeg = 1;
-        break;
-      default:
-        fprintf(stderr, "Invalid image format requested: %d\n", 
-            msg->image_data_format);
-        break;
-    }
+      // TODO
   }
 }
 
@@ -351,44 +382,20 @@ image_cb(freenect_device *dev, void *data, uint32_t timestamp)
 
   state->msg.image.timestamp = msg_utime;
 
-  switch(state->current_image_format) {
-    case FREENECT_VIDEO_RGB:
-      state->msg.image.image_data_nbytes = FREENECT_VIDEO_RGB_SIZE;
-      state->msg.image.image_data_format = KINECT_IMAGE_DATA_T_VIDEO_RGB;
-      break;
-    case FREENECT_VIDEO_BAYER:
-      state->msg.image.image_data_nbytes =  FREENECT_VIDEO_BAYER_SIZE;
-      state->msg.image.image_data_format = KINECT_IMAGE_DATA_T_VIDEO_BAYER;
-      break;
-#if 0
-    case FREENECT_VIDEO_YUV_RGB:
-      state->msg.image.image_data_nbytes =  FREENECT_VIDEO_YUV_RGB_SIZE;
-      state->msg.image.image_data_format = KINECT_IMAGE_DATA_T_VIDEO_YUV_RGB;
-      break;
-#endif
-    case FREENECT_VIDEO_YUV_RAW:
-      state->msg.image.image_data_nbytes =  FREENECT_VIDEO_YUV_RAW_SIZE;
-      state->msg.image.image_data_format = KINECT_IMAGE_DATA_T_VIDEO_YUV_RAW;
-      break;
-    case FREENECT_VIDEO_IR_8BIT:
-      state->msg.image.image_data_nbytes =  FREENECT_VIDEO_IR_8BIT_SIZE;
-      state->msg.image.image_data_format = KINECT_IMAGE_DATA_T_VIDEO_IR_8BIT;
-      break;
-    case FREENECT_VIDEO_IR_10BIT:
-      state->msg.image.image_data_nbytes =  FREENECT_VIDEO_IR_10BIT_SIZE;
-      state->msg.image.image_data_format = KINECT_IMAGE_DATA_T_VIDEO_IR_10BIT;
-      break;
-    case FREENECT_VIDEO_IR_10BIT_PACKED:
-      state->msg.image.image_data_nbytes =  FREENECT_VIDEO_IR_10BIT_PACKED_SIZE;
-      state->msg.image.image_data_format = KINECT_IMAGE_DATA_T_VIDEO_IR_10BIT_PACKED;
-      break;
-    default:
-      state->msg.image.image_data_nbytes = 0; // TODO spew warning
-      state->msg.image.image_data_format = -1;
-      break;
-  }
+  // Do we need to de-Bayer the image?
+  if(state->current_image_format == KINECT_IMAGE_DATA_T_VIDEO_RGB ||
+      state->current_image_format == KINECT_IMAGE_DATA_T_VIDEO_RGB_JPEG) {
+    cam_pixel_convert_bayer_to_8u_bgra (state->debayer_buf, state->debayer_buf_stride, 
+        640, 480, data, 640*3, CAM_PIXEL_FORMAT_BAYER_GRBG);
 
-  if(state->use_jpeg && state->current_image_format == FREENECT_VIDEO_RGB) {
+    // convert from bgra -> rgb and place the result back into the original
+    // bayer buffer
+    cam_pixel_convert_8u_bgra_to_8u_rgb((uint8_t*)data, 640*3, 640, 480,
+        state->debayer_buf, state->debayer_buf_stride);
+  } 
+
+  // do we need to JPEG compress the image?
+  if(state->current_image_format == KINECT_IMAGE_DATA_T_VIDEO_RGB_JPEG) {
     int compressed_size = state->image_buf_size;
 #if USE_JPEG_UTILS_POD
     int compression_status = jpeg_compress_8u_rgb (data, 640, 480, 640*3,
@@ -422,8 +429,7 @@ freenect_threadfunc(void *user_data)
   freenect_set_led(state->f_dev, state->current_led);
   freenect_set_depth_callback(state->f_dev, depth_cb);
   freenect_set_video_callback(state->f_dev, image_cb);
-  freenect_set_video_format(state->f_dev, state->current_image_format);
-  freenect_set_depth_format(state->f_dev, state->current_depth_format);
+  set_image_depth_formats(state);
   freenect_set_video_buffer(state->f_dev, state->image_data);
 
 //  if(state->capture_rate->target_hz <= 15) {
@@ -448,6 +454,7 @@ freenect_threadfunc(void *user_data)
       state->got_depth = 0;
     }
 
+#if 0
     // do we need to change video formats?
     if (state->requested_image_format != state->current_image_format) {
       dbg("Changing Image format\n");
@@ -465,6 +472,7 @@ freenect_threadfunc(void *user_data)
       freenect_start_depth(state->f_dev);
       state->current_depth_format = state->requested_depth_format;
     }
+#endif
 
     if(rate_check(state->report_rate)) {
       printf("Capture rate: %.2fHz (%6"PRId64")\n", state->capture_rate->current_hz, state->capture_rate->tick_count);
@@ -518,12 +526,11 @@ int main(int argc, char **argv)
   state->freenect_angle = 0;
   state->freenect_led = 0;
 
-  state->use_jpeg = 0;
   state->jpeg_quality = 94;
 
   // make these configurable - either/both from the command line and from outside LCM command
-  state->requested_image_format = FREENECT_VIDEO_RGB;
-  state->requested_depth_format = FREENECT_DEPTH_11BIT;
+  state->requested_image_format = KINECT_IMAGE_DATA_T_VIDEO_RGB;
+  state->requested_depth_format = KINECT_DEPTH_DATA_T_DEPTH_11BIT;
   state->requested_led = LED_RED;
   state->current_image_format = state->requested_image_format;
   state->current_depth_format = state->requested_depth_format;
@@ -542,7 +549,7 @@ int main(int argc, char **argv)
         dbg("Skipping depth publishing\n");
         break;
       case 'j':
-        state->use_jpeg = 1;
+        state->requested_image_format = KINECT_IMAGE_DATA_T_VIDEO_RGB_JPEG;
         printf("JPEG compressing RGB data\n");
         break;
       case 'q':
@@ -581,10 +588,21 @@ int main(int argc, char **argv)
 
   // allocate more space for the image buffer, as we might use it for compressed data
   state->image_buf_size = 640 * 480 * 10;
-  state->image_buf = (uint8_t*) malloc(state->image_buf_size);
+  if(0 != posix_memalign((void**)&state->image_buf, 16, state->image_buf_size)) {
+    fprintf(stderr, "Error allocating image buffer\n");
+    return 1;
+  }
   state->msg.image.image_data = state->image_buf;
   state->msg.image.width = FREENECT_FRAME_W;
   state->msg.image.height = FREENECT_FRAME_H;
+
+  // allocate a buffer for bayer de-mosaicing
+  state->debayer_buf_size = 640 * 480 * 4;
+  state->debayer_buf_stride = 640 * 4;
+  if(0 != posix_memalign((void**)&state->debayer_buf, 16, state->debayer_buf_size)) {
+    fprintf(stderr, "error allocating de-Bayer buffer\n");
+    return 1;
+  }
 
   // allocate more space for the depth buffer, as we might use it for compressed data
   state->depth_buf_size = 640 * 480 * sizeof(int16_t) * 4;

@@ -1,6 +1,12 @@
-add_definitions(-Wall)
+add_definitions(-Wall -std=gnu99 -msse2 -msse3 -DHAVE_INTEL)
 
-add_executable(kinect-lcm main.c timestamp.c jpeg-utils-ijg.c)
+add_executable(kinect-lcm main.c 
+    timestamp.c 
+    pixels.c
+    pixels_sse2.c
+    pixels_sse3.c
+    cpuid.c
+    jpeg-utils-ijg.c)
 
 add_executable(test-sender test_sender.c timestamp.c)
 

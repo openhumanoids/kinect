@@ -154,8 +154,6 @@ on_kinect_frame (const lcm_recv_buf_t *rbuf, const char *channel,
 {
     KinectRenderer *self = (KinectRenderer*) user_data;
 
-    printf("frame\n");
-
     if(self->msg)
         kinect_frame_t_destroy(self->msg);
     self->msg = kinect_frame_t_copy(msg);
