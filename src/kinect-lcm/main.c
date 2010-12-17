@@ -227,8 +227,8 @@ set_image_depth_formats(state_t* state)
   state->current_image_format = state->requested_image_format;
   state->msg.image.image_data_format = state->requested_image_format;
   state->current_depth_format = state->requested_depth_format;
-  freenect_set_video_format(state->f_dev, state->current_image_format);
-  freenect_set_depth_format(state->f_dev, state->current_depth_format);
+  freenect_set_video_format(state->f_dev, vfmt);
+  freenect_set_depth_format(state->f_dev, dfmt);
 
 }
 
@@ -385,8 +385,9 @@ image_cb(freenect_device *dev, void *data, uint32_t timestamp)
   // Do we need to de-Bayer the image?
   if(state->current_image_format == KINECT_IMAGE_DATA_T_VIDEO_RGB ||
       state->current_image_format == KINECT_IMAGE_DATA_T_VIDEO_RGB_JPEG) {
+
     cam_pixel_convert_bayer_to_8u_bgra (state->debayer_buf, state->debayer_buf_stride, 
-        640, 480, data, 640*3, CAM_PIXEL_FORMAT_BAYER_GRBG);
+        640, 480, data, 640, CAM_PIXEL_FORMAT_BAYER_GRBG);
 
     // convert from bgra -> rgb and place the result back into the original
     // bayer buffer
