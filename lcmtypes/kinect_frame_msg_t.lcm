@@ -1,12 +1,12 @@
 package kinect;
 
-struct frame_t
+struct frame_msg_t
 {
     // message transmission time
     int64_t  timestamp;
 
-    kinect.image_data_t image;
-    kinect.depth_data_t depth;
+    kinect.image_msg_t image;
+    kinect.depth_msg_t depth;
 
     // accelerometer data, in sensor units
     int16_t  raw_accel[3];

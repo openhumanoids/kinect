@@ -5,13 +5,13 @@
     </maintainers>
 
     <summary>
-        Kinect LCM driver.
+        Kinect LCM driver and utilities.
     </summary>
 
     <description>
-        Kinect LCM driver.
+        Kinect LCM driver and utility functions.
 
-        uses libfreenect, imported on Wed. Dec 8, 2010.
+        uses libfreenect, imported on Tue. Dec 21, 2010.
     </description>
 
     <requirements>

@@ -5,7 +5,7 @@
 #include <bot_core/bot_core.h>
 #include <bot_vis/bot_vis.h>
 
-#include <lcmtypes/kinect_frame_t.h>
+#include <lcmtypes/kinect_frame_msg_t.h>
 #include <kinect/kinect_calib.h>
 
 #include "jpeg-utils-ijg.h"
@@ -16,7 +16,7 @@ typedef struct _KinectRenderer {
     BotViewer   *viewer;
     lcm_t     *lcm;
 
-    kinect_frame_t* msg;
+    kinect_frame_msg_t* msg;
 
     int width;
     int height;
@@ -92,7 +92,7 @@ recompute_frame_data(KinectRenderer* self)
 
     const uint8_t* depth_data = self->msg->depth.depth_data;
 
-    if(self->msg->depth.compression != KINECT_DEPTH_DATA_T_COMPRESSION_NONE) {
+    if(self->msg->depth.compression != KINECT_DEPTH_MSG_T_COMPRESSION_NONE) {
         if(self->msg->depth.uncompressed_size > self->uncompress_buffer_size) {
             self->uncompress_buffer_size = self->msg->depth.uncompressed_size;
             self->uncompress_buffer = (uint8_t*) realloc(self->uncompress_buffer, self->uncompress_buffer_size);
@@ -107,7 +107,7 @@ recompute_frame_data(KinectRenderer* self)
     }
 
     switch(self->msg->depth.depth_data_format) {
-        case KINECT_DEPTH_DATA_T_DEPTH_11BIT:
+        case KINECT_DEPTH_MSG_T_DEPTH_11BIT:
             if(G_BYTE_ORDER == G_LITTLE_ENDIAN) {
                 int16_t* rdd = (int16_t*) depth_data;
                 int i;
@@ -119,7 +119,7 @@ recompute_frame_data(KinectRenderer* self)
                 fprintf(stderr, "Big endian systems not supported\n");
             }
             break;
-        case KINECT_DEPTH_DATA_T_DEPTH_10BIT:
+        case KINECT_DEPTH_MSG_T_DEPTH_10BIT:
             fprintf(stderr, "10-bit depth data not supported\n");
             break;
         default:
@@ -129,20 +129,20 @@ recompute_frame_data(KinectRenderer* self)
 
 static void 
 on_kinect_frame (const lcm_recv_buf_t *rbuf, const char *channel,
-        const kinect_frame_t *msg, void *user_data )
+        const kinect_frame_msg_t *msg, void *user_data )
 {
     KinectRenderer *self = (KinectRenderer*) user_data;
 
     if(self->msg)
-        kinect_frame_t_destroy(self->msg);
-    self->msg = kinect_frame_t_copy(msg);
+        kinect_frame_msg_t_destroy(self->msg);
+    self->msg = kinect_frame_msg_t_copy(msg);
 
     // TODO check width, height
 
-    if(msg->image.image_data_format == KINECT_IMAGE_DATA_T_VIDEO_RGB) {
+    if(msg->image.image_data_format == KINECT_IMAGE_MSG_T_VIDEO_RGB) {
         memcpy(self->rgb_data, msg->image.image_data, 
                 self->width * self->height * 3);
-    } else if(msg->image.image_data_format == KINECT_IMAGE_DATA_T_VIDEO_RGB_JPEG) {
+    } else if(msg->image.image_data_format == KINECT_IMAGE_MSG_T_VIDEO_RGB_JPEG) {
         jpegijg_decompress_8u_rgb(msg->image.image_data, msg->image.image_data_nbytes,
                 self->rgb_data, self->width, self->height, self->width * 3);
     }
@@ -262,7 +262,7 @@ static void _free(BotRenderer *renderer)
     KinectRenderer *self = (KinectRenderer*) renderer;
 
     if(self->msg)
-        kinect_frame_t_destroy(self->msg);
+        kinect_frame_msg_t_destroy(self->msg);
 
     free(self->uncompress_buffer);
     self->uncompress_buffer_size = 0;
@@ -353,7 +353,7 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, lcm_t* lcm, int priority)
     g_signal_connect (G_OBJECT (self->pw), "changed",
                       G_CALLBACK (on_param_widget_changed), self);
 
-    kinect_frame_t_subscribe(self->lcm, "KINECT_FRAME", on_kinect_frame, self);
+    kinect_frame_msg_t_subscribe(self->lcm, "KINECT_FRAME", on_kinect_frame, self);
 
     bot_viewer_add_renderer(viewer, renderer, priority);
 }

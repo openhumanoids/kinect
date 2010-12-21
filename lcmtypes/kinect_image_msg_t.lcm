@@ -1,6 +1,6 @@
 package kinect;
 
-struct image_data_t
+struct image_msg_t
 {
     // acquisition time (adjusted to host clock)
     int64_t  timestamp;

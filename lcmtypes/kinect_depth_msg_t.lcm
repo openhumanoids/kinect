@@ -1,6 +1,6 @@
 package kinect;
 
-struct depth_data_t
+struct depth_msg_t
 {
     // acquisition time (adjusted to host clock)
     int64_t  timestamp;

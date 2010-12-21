@@ -1,6 +1,6 @@
 package kinect;
 
-struct cmd_t
+struct cmd_msg_t
 {
     int64_t  timestamp;
 

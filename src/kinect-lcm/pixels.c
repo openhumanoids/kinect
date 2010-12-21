@@ -992,13 +992,15 @@ cam_pixel_convert_bayer_to_8u_bgra (uint8_t *dest, int dstride, int width,
 
     // allocate a 16-byte aligned buffer for the source image
     int bayer_stride = width;
-    void* bayer_img = src;
+    const void* bayer_img = src;
+    void* tmp_buf = NULL;
     if(!CAM_IS_ALIGNED16(src)) {
-        bayer_img = MALLOC_ALIGNED (height * bayer_stride);
+        tmp_buf = MALLOC_ALIGNED (height * bayer_stride);
         // copy the source image into the 16-byte aligned buffer
         cam_pixel_copy_8u_generic (src, sstride, 
-                bayer_img, bayer_stride,
+                tmp_buf, bayer_stride,
                 0, 0, 0, 0, width, height, 8);
+        bayer_img = tmp_buf;
     }
 
     // split the bayer image 
@@ -1026,9 +1028,7 @@ cam_pixel_convert_bayer_to_8u_bgra (uint8_t *dest, int dstride, int width,
             dest, dstride, 0, 0, 0, 0, width, height, 8 * 4);
 
     // release allocated memory
-    if(!CAM_IS_ALIGNED16(src)) {
-        free (bayer_img);
-    }
+    free (tmp_buf);
     free (bgra_img);
     for (int i=0; i<4; i++) {
         free (bayer_planes[i]);

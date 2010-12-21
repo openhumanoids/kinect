@@ -7,8 +7,8 @@
 #include <zlib.h>
 
 #include <lcm/lcm.h>
-#include <lcmtypes/kinect_depth_data_t.h>
-#include <lcmtypes/kinect_frame_t.h>
+#include <lcmtypes/kinect_depth_msg_t.h>
+#include <lcmtypes/kinect_frame_msg_t.h>
 
 #if defined(__APPLE__)
 #include <GLUT/glut.h>
@@ -118,22 +118,22 @@ void InitGL(int Width, int Height)
 uint16_t t_gamma[2048];
 
 static void
-on_frame(const lcm_recv_buf_t* lcm, const char* channel, const kinect_frame_t* msg, void* user)
+on_frame(const lcm_recv_buf_t* lcm, const char* channel, const kinect_frame_msg_t* msg, void* user)
 {
     // TODO check image width, height
 
-    if(msg->image.image_data_format == KINECT_IMAGE_DATA_T_VIDEO_RGB) {
+    if(msg->image.image_data_format == KINECT_IMAGE_MSG_T_VIDEO_RGB) {
         memcpy(rgb, msg->image.image_data, width * height * 3);
-    } else if(msg->image.image_data_format == KINECT_IMAGE_DATA_T_VIDEO_RGB_JPEG) {
+    } else if(msg->image.image_data_format == KINECT_IMAGE_MSG_T_VIDEO_RGB_JPEG) {
         jpegijg_decompress_8u_rgb (msg->image.image_data, msg->image.image_data_nbytes,
                 rgb, width, height, width * 3);
     }
 
     int i;
     const uint16_t* depth = NULL;
-    if(msg->depth.compression == KINECT_DEPTH_DATA_T_COMPRESSION_NONE) {
+    if(msg->depth.compression == KINECT_DEPTH_MSG_T_COMPRESSION_NONE) {
         depth = (uint16_t*) msg->depth.depth_data;
-    } else if (msg->depth.compression == KINECT_DEPTH_DATA_T_COMPRESSION_ZLIB) {
+    } else if (msg->depth.compression == KINECT_DEPTH_MSG_T_COMPRESSION_ZLIB) {
         unsigned long dlen = msg->depth.uncompressed_size;
         uncompress(depth_uncompress_buffer, &dlen, msg->depth.depth_data, msg->depth.depth_data_nbytes);
         depth = (uint16_t*) depth_uncompress_buffer;
@@ -228,7 +228,7 @@ int main(int argc, char **argv)
 
     lcm = lcm_create(NULL);
 
-    kinect_frame_t_subscribe(lcm, "KINECT_FRAME", on_frame, NULL);
+    kinect_frame_msg_t_subscribe(lcm, "KINECT_FRAME", on_frame, NULL);
 
     glutMainLoop();
 

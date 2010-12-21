@@ -7,7 +7,7 @@
 #include <unistd.h>
 #include "timestamp.h"
 
-#include <lcmtypes/kinect_cmd_t.h>
+#include <lcmtypes/kinect_cmd_msg_t.h>
 
 
 static void
@@ -15,7 +15,7 @@ send_message(lcm_t * lcm, int8_t cmd_type, int cmd_property)
 {
   int64_t host_utime = timestamp_now();
 
-  kinect_cmd_t k_cmd = {
+  kinect_cmd_msg_t k_cmd = {
     .timestamp = host_utime,
     .command_type = cmd_type,
     .tilt_degree = 0,
@@ -26,16 +26,16 @@ send_message(lcm_t * lcm, int8_t cmd_type, int cmd_property)
 
   switch(cmd_type)
   {
-    case KINECT_CMD_T_SET_TILT:
+    case KINECT_CMD_MSG_T_SET_TILT:
       k_cmd.tilt_degree = cmd_property;
       break;
-    case KINECT_CMD_T_SET_LED:
+    case KINECT_CMD_MSG_T_SET_LED:
       k_cmd.led_status = cmd_property;
       break;
-    case KINECT_CMD_T_SET_IMAGE_DATA_FORMAT:
+    case KINECT_CMD_MSG_T_SET_IMAGE_DATA_FORMAT:
       k_cmd.image_data_format = cmd_property;
       break;
-    case KINECT_CMD_T_SET_DEPTH_DATA_FORMAT:
+    case KINECT_CMD_MSG_T_SET_DEPTH_DATA_FORMAT:
       k_cmd.depth_data_format = cmd_property;
       break;
     default:
@@ -43,7 +43,7 @@ send_message(lcm_t * lcm, int8_t cmd_type, int cmd_property)
       break;
   }
 
-  kinect_cmd_t_publish(lcm, "KINECT_CMD", &k_cmd);
+  kinect_cmd_msg_t_publish(lcm, "KINECT_CMD", &k_cmd);
 }
 
 int
@@ -53,7 +53,7 @@ main(int argc, char ** argv)
 
   int c;
   int tilt_angle = 0;
-  int led_state = 0;//KINECT_CMD_T_LED_IGNORE;//100;//kinect_cmd_t.LED_IGNORE;  
+  int led_state = 0;//KINECT_CMD_MSG_T_LED_IGNORE;//100;//kinect_cmd_msg_t.LED_IGNORE;  
   int img_format = 0;
   int depth_format = 0;
 
@@ -102,16 +102,16 @@ main(int argc, char ** argv)
     return 1;
 
   if(do_tilt){
-    send_message(lcm,KINECT_CMD_T_SET_TILT,tilt_angle);
+    send_message(lcm,KINECT_CMD_MSG_T_SET_TILT,tilt_angle);
   }
   if(do_led){
-    send_message(lcm,KINECT_CMD_T_SET_LED,led_state);
+    send_message(lcm,KINECT_CMD_MSG_T_SET_LED,led_state);
   }
   if(do_img){
-    send_message(lcm,KINECT_CMD_T_SET_IMAGE_DATA_FORMAT,img_format);
+    send_message(lcm,KINECT_CMD_MSG_T_SET_IMAGE_DATA_FORMAT,img_format);
   }
   if(do_depth){
-    send_message(lcm,KINECT_CMD_T_SET_DEPTH_DATA_FORMAT,depth_format);
+    send_message(lcm,KINECT_CMD_MSG_T_SET_DEPTH_DATA_FORMAT,depth_format);
   }
 
   lcm_destroy(lcm);
