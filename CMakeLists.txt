@@ -20,6 +20,9 @@ include_directories(${LCMTYPES_INCLUDE_DIRS}
 # build LCM kinect utility
 add_subdirectory(src/kinect-lcm)
 
+# kinect utility library
+add_subdirectory(src/kinect-utils)
+
 # simple GLUT visualization tool
 add_subdirectory(src/kinect-glview)
 

@@ -22,7 +22,8 @@ target_link_libraries(kinect-viewer
 pods_use_pkg_config_packages(kinect-viewer
     glib-2.0
     bot2-vis
-    lcm)
+    lcm
+    kinect-utils)
 
 pods_install_libraries(kinect-render)
 
