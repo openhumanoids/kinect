@@ -20,6 +20,9 @@ typedef struct _KinectCameraIntrinsics
 
 typedef struct _KinectCalibration
 {
+    int width;   // image width
+    int height;  // image height
+
     double shift_offset;                // fixed disparity offset
     double projector_depth_baseline;    // distance from projector to depth camera (m)
     double depth_to_rgb_rot[9];         // 3x3 rotation matrix

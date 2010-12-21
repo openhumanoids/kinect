@@ -291,50 +291,44 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, lcm_t* lcm, int priority)
     BotRenderer *renderer = &self->renderer;
 
     self->kcal = kinect_calib_new();
+    self->kcal->width = 640;
+    self->kcal->height = 480;
 #if 0
-    self->kcal->shift_offset = 1101.5254;
-    self->kcal->projector_depth_baseline = 0.07710;
-
     self->kcal->intrinsics_depth.fx = 579.97821782;
     self->kcal->intrinsics_depth.cx = 317.80483131;
     self->kcal->intrinsics_depth.cy = 243.16590456;
-
-    double R[9] = { 0.999997, -0.002517, -0.000720,
-                    0.002518, 0.999995, 0.001772,  
-                    0.000716, -0.001774, 0.999998 };
-    double T[3] = { 
-        -0.025318, 
-        0.000415, 
-        -0.011306 };
-
-    memcpy(self->kcal->depth_to_rgb_rot, R, 9*sizeof(double));
-    memcpy(self->kcal->depth_to_rgb_translation, T, 3*sizeof(double));
 
     self->kcal->intrinsics_rgb.fx = 518.12282951;
     self->kcal->intrinsics_rgb.cx = 322.60598443;
     self->kcal->intrinsics_rgb.cy = 262.56367112;
     self->kcal->intrinsics_rgb.k1 = 0.17730118;
     self->kcal->intrinsics_rgb.k2 = -0.35126598;
-#else
-    self->kcal->shift_offset = 1035.9168;
-    self->kcal->projector_depth_baseline = 0.02663;
 
+    self->kcal->shift_offset = 1101.5254;
+    self->kcal->projector_depth_baseline = 0.07710;
+
+    double R[9] = { 0.999997, -0.002517, -0.000720, 0.002518, 0.999995, 0.001772,  0.000716, -0.001774, 0.999998 };
+    double T[3] = { -0.025318, 0.000415, -0.011306 };
+#else
     self->kcal->intrinsics_depth.fx = 580.06887971;
     self->kcal->intrinsics_depth.cx = 324.15898680;
     self->kcal->intrinsics_depth.cy = 238.02660584;
-
-    double R[9] = { 0.999899, 0.006075, -0.012839, -0.006119, 0.999976, -0.003321, 0.012819, 0.003399, 0.999912 };
-    double T[3] = { -0.006699, 0.000942, -0.033191 };
-
-    memcpy(self->kcal->depth_to_rgb_rot, R, 9*sizeof(double));
-    memcpy(self->kcal->depth_to_rgb_translation, T, 3*sizeof(double));
 
     self->kcal->intrinsics_rgb.fx = 518.22278379;
     self->kcal->intrinsics_rgb.cx = 318.57466440;
     self->kcal->intrinsics_rgb.cy = 256.95963149;
     self->kcal->intrinsics_rgb.k1 = 0.15272473;
     self->kcal->intrinsics_rgb.k2 = -0.26339203;
+
+    self->kcal->shift_offset = 1035.9168;
+    self->kcal->projector_depth_baseline = 0.02663;
+
+    double R[9] = { 0.999899, 0.006075, -0.012839, -0.006119, 0.999976, -0.003321, 0.012819, 0.003399, 0.999912 };
+    double T[3] = { -0.006699, 0.000942, -0.033191 };
 #endif
+
+    memcpy(self->kcal->depth_to_rgb_rot, R, 9*sizeof(double));
+    memcpy(self->kcal->depth_to_rgb_translation, T, 3*sizeof(double));
 
     self->lcm = lcm;
     self->viewer = viewer;
