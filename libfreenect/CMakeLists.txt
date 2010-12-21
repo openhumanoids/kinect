@@ -51,6 +51,7 @@ set (PROJECT_APIVER
 OPTION(BUILD_EXAMPLES "Build example programs" ON)
 OPTION(BUILD_FAKENECT "Build fakenect mock library" ON)
 OPTION(BUILD_C_SYNC "Build c synchronous library" ON)
+OPTION(BUILD_CV "Build OpenCV wrapper" OFF)
 OPTION(BUILD_AS3_SERVER "Build the Actionscript 3 Server Example" OFF)
 IF(PROJECT_OS_LINUX)
 	OPTION(BUILD_CPACK "Build an RPM or DEB using CPack" OFF)
@@ -90,6 +91,12 @@ SET(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/bin)
 SET(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR}/lib)
 SET(DOC_OUTPUT_PATH ${CMAKE_BINARY_DIR}/doc)
 
+# let CFLAGS env override this
+if(CMAKE_C_FLAGS STREQUAL "")
+  set(CMAKE_C_FLAGS "-O2")
+endif()
+add_definitions(-Wall)
+
 # Pretty much everyone is going to need the main includes
 include_directories (${CMAKE_CURRENT_SOURCE_DIR}/include)
 
@@ -110,6 +117,10 @@ ENDIF()
 
 IF(BUILD_C_SYNC)
   add_subdirectory (wrappers/c_sync)
+ENDIF()
+
+IF(BUILD_CV)
+  add_subdirectory (wrappers/opencv)
 ENDIF()
 
 IF(BUILD_AS3_SERVER)
