@@ -1,7 +1,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "kinect_calib.h"
+#include "kinect-calib.h"
 
 KinectCalibration* 
 kinect_calib_new(void)

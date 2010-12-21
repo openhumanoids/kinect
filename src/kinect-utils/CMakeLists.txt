@@ -1,10 +1,12 @@
 add_definitions(-Wall)
 
-add_library(kinect-utils SHARED kinect_calib.c)
+add_library(kinect-utils SHARED kinect-calib.c)
 
 set_target_properties(kinect-utils PROPERTIES SOVERSION 1)
 
-pods_install_headers(kinect_calib.h DESTINATION kinect)
+pods_install_headers(kinect-calib.h 
+    kinect-utils.h
+    DESTINATION kinect-utils)
 
 pods_install_libraries(kinect-utils)
 

@@ -6,7 +6,7 @@
 #include <bot_vis/bot_vis.h>
 
 #include <lcmtypes/kinect_frame_msg_t.h>
-#include <kinect/kinect_calib.h>
+#include <kinect-utils/kinect-utils.h>
 
 #include "jpeg-utils-ijg.h"
 
