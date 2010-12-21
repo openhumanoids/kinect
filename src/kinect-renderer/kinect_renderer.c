@@ -122,30 +122,6 @@ recompute_frame_data(KinectRenderer* self)
         case KINECT_DEPTH_DATA_T_DEPTH_10BIT:
             fprintf(stderr, "10-bit depth data not supported\n");
             break;
-#if 0
-        case KINECT_DEPTH_DATA_T_DEPTH_11BIT_PACKED:
-            if(G_BYTE_ORDER == G_LITTLE_ENDIAN) {
-                int mask = (1 << 11) - 1;
-                uint32_t buffer = 0;
-                int bitsIn = 0;
-                uint8_t* raw = (uint8_t*) depth_data;
-
-                for(int i=0; i<npixels; i++) {
-                    while (bitsIn < 11) {
-                        buffer = (buffer << 8) | *(raw++);
-                        bitsIn += 8;
-                    }
-                    bitsIn -= 11;
-                    self->disparity[i] = (buffer >> bitsIn) & mask;
-                }
-            } else {
-                fprintf(stderr, "Big endian systems not supported\n");
-            }
-            break;
-        case KINECT_DEPTH_DATA_T_DEPTH_10BIT_PACKED:
-            fprintf(stderr, "10-bit packed depth data not supported\n");
-            break;
-#endif
         default:
             break;
     }
@@ -183,24 +159,6 @@ static void on_param_widget_changed (BotGtkParamWidget *pw, const char *name, vo
     // TODO
 
     bot_viewer_request_redraw(self->viewer);
-}
-
-static inline void
-_matrix_multiply (const double *a, int a_nrows, int a_ncols,
-        const double *b, int b_nrows, int b_ncols,
-        double *result)
-{
-    int i, j, r;
-    assert (a_ncols == b_nrows);
-    for (i=0; i<a_nrows; i++) {
-        for (j=0; j<b_ncols; j++) {
-            double acc = 0;
-            for (r=0; r<a_ncols; r++) {
-                acc += a[i*a_ncols + r] * b[r*b_ncols + j];
-            }
-            result[i*b_ncols + j] = acc;
-        }
-    }
 }
 
 static inline void
