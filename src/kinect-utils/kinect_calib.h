@@ -1,5 +1,5 @@
-#ifndef __kinect_kinect_utils_h__
-#define __kinect_kinect_utils_h__
+#ifndef __kinect_kinect_calib_h__
+#define __kinect_kinect_calib_h__
 
 #ifdef __cplusplus
 extern "C" {
