@@ -654,7 +654,8 @@ int main(int argc, char **argv)
   // acquisition times
   state->clocksync = timestamp_sync_init(100000000, 0xFFFFFFFFLL, 1.001);
 
-  g_thread_init(NULL);
+  if(!g_thread_supported()) 
+      g_thread_init(NULL);
 
   // subscribe to kinect command messages
   kinect_cmd_msg_t_subscribe(state->lcm, "KINECT_CMD", cmd_cb, state);
