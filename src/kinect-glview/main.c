@@ -122,74 +122,78 @@ on_frame(const lcm_recv_buf_t* lcm, const char* channel, const kinect_frame_msg_
 {
     // TODO check image width, height
 
-    if(msg->image.image_data_format == KINECT_IMAGE_MSG_T_VIDEO_RGB) {
-        memcpy(rgb, msg->image.image_data, width * height * 3);
-    } else if(msg->image.image_data_format == KINECT_IMAGE_MSG_T_VIDEO_RGB_JPEG) {
-        jpegijg_decompress_8u_rgb (msg->image.image_data, msg->image.image_data_nbytes,
-                rgb, width, height, width * 3);
+    if(msg->image.image_data_nbytes) {
+        if(msg->image.image_data_format == KINECT_IMAGE_MSG_T_VIDEO_RGB) {
+            memcpy(rgb, msg->image.image_data, width * height * 3);
+        } else if(msg->image.image_data_format == KINECT_IMAGE_MSG_T_VIDEO_RGB_JPEG) {
+            jpegijg_decompress_8u_rgb (msg->image.image_data, msg->image.image_data_nbytes,
+                    rgb, width, height, width * 3);
+        }
     }
 
-    int i;
-    const uint16_t* depth = NULL;
-    if(msg->depth.compression == KINECT_DEPTH_MSG_T_COMPRESSION_NONE) {
-        depth = (uint16_t*) msg->depth.depth_data;
-    } else if (msg->depth.compression == KINECT_DEPTH_MSG_T_COMPRESSION_ZLIB) {
-        unsigned long dlen = msg->depth.uncompressed_size;
-        uncompress(depth_uncompress_buffer, &dlen, msg->depth.depth_data, msg->depth.depth_data_nbytes);
-        depth = (uint16_t*) depth_uncompress_buffer;
-    }
+    if(msg->depth.depth_data_nbytes) {
+        int i;
+        const uint16_t* depth = NULL;
+        if(msg->depth.compression == KINECT_DEPTH_MSG_T_COMPRESSION_NONE) {
+            depth = (uint16_t*) msg->depth.depth_data;
+        } else if (msg->depth.compression == KINECT_DEPTH_MSG_T_COMPRESSION_ZLIB) {
+            unsigned long dlen = msg->depth.uncompressed_size;
+            uncompress(depth_uncompress_buffer, &dlen, msg->depth.depth_data, msg->depth.depth_data_nbytes);
+            depth = (uint16_t*) depth_uncompress_buffer;
+        }
 
-    int npixels = width * height;
-	for (i=0; i<npixels; i++) {
+        int npixels = width * height;
+        for (i=0; i<npixels; i++) {
 #if 0
-        int max = 2048;
-        int min = 800;
-        int p = (int)(255 * (depth[i] - min) / (max - min));
-        depth_img[i*3 + 0] = p;
-        depth_img[i*3 + 1] = p;
-        depth_img[i*3 + 2] = p;
+            int max = 2048;
+            int min = 800;
+            int p = (int)(255 * (depth[i] - min) / (max - min));
+            depth_img[i*3 + 0] = p;
+            depth_img[i*3 + 1] = p;
+            depth_img[i*3 + 2] = p;
 #else
-		int pval = t_gamma[depth[i]];
-		int lb = pval & 0xff;
-		switch (pval>>8) {
-			case 0:
-				depth_img[3*i+0] = 255;
-				depth_img[3*i+1] = 255-lb;
-				depth_img[3*i+2] = 255-lb;
-				break;
-			case 1:
-				depth_img[3*i+0] = 255;
-				depth_img[3*i+1] = lb;
-				depth_img[3*i+2] = 0;
-				break;
-			case 2:
-				depth_img[3*i+0] = 255-lb;
-				depth_img[3*i+1] = 255;
-				depth_img[3*i+2] = 0;
-				break;
-			case 3:
-				depth_img[3*i+0] = 0;
-				depth_img[3*i+1] = 255;
-				depth_img[3*i+2] = lb;
-				break;
-			case 4:
-				depth_img[3*i+0] = 0;
-				depth_img[3*i+1] = 255-lb;
-				depth_img[3*i+2] = 255;
-				break;
-			case 5:
-				depth_img[3*i+0] = 0;
-				depth_img[3*i+1] = 0;
-				depth_img[3*i+2] = 255-lb;
-				break;
-			default:
-				depth_img[3*i+0] = 0;
-				depth_img[3*i+1] = 0;
-				depth_img[3*i+2] = 0;
-				break;
-		}
+            int pval = t_gamma[depth[i]];
+            int lb = pval & 0xff;
+            switch (pval>>8) {
+                case 0:
+                    depth_img[3*i+0] = 255;
+                    depth_img[3*i+1] = 255-lb;
+                    depth_img[3*i+2] = 255-lb;
+                    break;
+                case 1:
+                    depth_img[3*i+0] = 255;
+                    depth_img[3*i+1] = lb;
+                    depth_img[3*i+2] = 0;
+                    break;
+                case 2:
+                    depth_img[3*i+0] = 255-lb;
+                    depth_img[3*i+1] = 255;
+                    depth_img[3*i+2] = 0;
+                    break;
+                case 3:
+                    depth_img[3*i+0] = 0;
+                    depth_img[3*i+1] = 255;
+                    depth_img[3*i+2] = lb;
+                    break;
+                case 4:
+                    depth_img[3*i+0] = 0;
+                    depth_img[3*i+1] = 255-lb;
+                    depth_img[3*i+2] = 255;
+                    break;
+                case 5:
+                    depth_img[3*i+0] = 0;
+                    depth_img[3*i+1] = 0;
+                    depth_img[3*i+2] = 255-lb;
+                    break;
+                default:
+                    depth_img[3*i+0] = 0;
+                    depth_img[3*i+1] = 0;
+                    depth_img[3*i+2] = 0;
+                    break;
+            }
 #endif
-	}
+        }
+    }
 }
 
 int main(int argc, char **argv)

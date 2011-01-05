@@ -69,9 +69,12 @@ typedef struct _state_t {
   uint8_t* debayer_buf;
   int debayer_buf_size;
 
-  uint8_t* depth_buf;
+  uint16_t* depth_unpack_buf;
+  int depth_unpack_buf_size;
+
+  uint8_t* depth_compress_buf;
   int debayer_buf_stride;
-  int depth_buf_size;
+  int depth_compress_buf_size;
 
   freenect_raw_tilt_state* tilt_state;
   double accel_mks[3];
@@ -213,23 +216,30 @@ set_image_depth_formats(state_t* state)
       vfmt = FREENECT_VIDEO_BAYER;
       break;
     default:
+      vfmt = FREENECT_VIDEO_BAYER;
       fprintf(stderr, "Invalid image format requested: %d\n", state->requested_image_format);
       state->msg.image.image_data_nbytes = 0;
       break;
   }
 
-  // TODO
-  dfmt = state->requested_depth_format;
-//  switch(state->requested_depth_format) {
-//
-//  }
+  switch(state->requested_depth_format) {
+    case KINECT_DEPTH_MSG_T_DEPTH_11BIT:
+      dfmt = FREENECT_DEPTH_11BIT_PACKED;
+      break;
+    case KINECT_DEPTH_MSG_T_DEPTH_10BIT:
+      dfmt = FREENECT_DEPTH_10BIT_PACKED;
+      break;
+    default:
+      dfmt = FREENECT_DEPTH_11BIT_PACKED;
+      fprintf(stderr, "Invalid depth format requested: %d\n", state->requested_depth_format);
+      break;
+  }
 
   state->current_image_format = state->requested_image_format;
   state->msg.image.image_data_format = state->requested_image_format;
   state->current_depth_format = state->requested_depth_format;
   freenect_set_video_format(state->f_dev, vfmt);
   freenect_set_depth_format(state->f_dev, dfmt);
-
 }
 
 void 
@@ -265,6 +275,23 @@ cmd_cb(const lcm_recv_buf_t *rbuf __attribute__((unused)),
   } else if(msg->command_type == KINECT_CMD_MSG_T_SET_IMAGE_DATA_FORMAT) {
       // TODO
   }
+}
+
+// Unpack buffer of (vw bit) data into padded 16bit buffer.
+static inline void 
+convert_packed_to_16bit(uint8_t *raw, uint16_t *frame, int vw, int len)
+{
+	int mask = (1 << vw) - 1;
+	uint32_t buffer = 0;
+	int bitsIn = 0;
+	while (len--) {
+		while (bitsIn < vw) {
+			buffer = (buffer << 8) | *(raw++);
+			bitsIn += 8;
+		}
+		bitsIn -= vw;
+		*(frame++) = (buffer >> bitsIn) & mask;
+	}
 }
 
 void 
@@ -306,13 +333,15 @@ depth_cb(freenect_device *dev, void *data, uint32_t timestamp)
   state->msg.depth.timestamp = msg_utime;
 
   switch(state->current_depth_format) {
-    case FREENECT_DEPTH_11BIT:
+    case KINECT_DEPTH_MSG_T_DEPTH_11BIT:
       state->msg.depth.depth_data_nbytes = FREENECT_DEPTH_11BIT_SIZE;
       state->msg.depth.depth_data_format = KINECT_DEPTH_MSG_T_DEPTH_11BIT;
+			convert_packed_to_16bit(data, state->depth_unpack_buf, 11, FREENECT_FRAME_PIX);
       break;
-    case FREENECT_DEPTH_10BIT:
+    case KINECT_DEPTH_MSG_T_DEPTH_10BIT:
       state->msg.depth.depth_data_nbytes = FREENECT_DEPTH_10BIT_SIZE;
       state->msg.depth.depth_data_format = KINECT_DEPTH_MSG_T_DEPTH_10BIT;
+			convert_packed_to_16bit(data, state->depth_unpack_buf, 10, FREENECT_FRAME_PIX);
       break;
 #if 0
     case FREENECT_DEPTH_11BIT_PACKED:
@@ -333,14 +362,14 @@ depth_cb(freenect_device *dev, void *data, uint32_t timestamp)
 
   if(state->use_zlib) {
       int uncompressed_size = state->msg.depth.depth_data_nbytes;
-      unsigned long compressed_size = state->depth_buf_size;
-      compress2(state->depth_buf, &compressed_size, data, uncompressed_size, Z_BEST_SPEED);
+      unsigned long compressed_size = state->depth_compress_buf_size;
+      compress2(state->depth_compress_buf, &compressed_size, (void*)state->depth_unpack_buf, uncompressed_size, Z_BEST_SPEED);
       state->msg.depth.depth_data_nbytes = (int)compressed_size;
       state->msg.depth.compression = KINECT_DEPTH_MSG_T_COMPRESSION_ZLIB;
       state->msg.depth.uncompressed_size = uncompressed_size;
   } else {
-      assert(state->msg.depth.depth_data_nbytes < state->depth_buf_size);
-      memcpy(state->depth_buf, data, state->msg.depth.depth_data_nbytes);
+      assert(state->msg.depth.depth_data_nbytes < state->depth_compress_buf_size);
+      memcpy(state->depth_compress_buf, state->depth_unpack_buf, state->msg.depth.depth_data_nbytes);
       state->msg.depth.compression = KINECT_DEPTH_MSG_T_COMPRESSION_NONE;
       state->msg.depth.uncompressed_size = state->msg.depth.depth_data_nbytes;
   }
@@ -605,10 +634,14 @@ int main(int argc, char **argv)
     return 1;
   }
 
-  // allocate more space for the depth buffer, as we might use it for compressed data
-  state->depth_buf_size = 640 * 480 * sizeof(int16_t) * 4;
-  state->depth_buf = (uint8_t*) malloc(state->depth_buf_size);
-  state->msg.depth.depth_data = state->depth_buf;
+  // allocate space for unpacking depth data
+  state->depth_unpack_buf_size = 640 * 480 * sizeof(uint16_t);
+  state->depth_unpack_buf = (uint16_t*) malloc(state->depth_unpack_buf_size);
+
+  // allocate space for zlib compressing depth data
+  state->depth_compress_buf_size = 640 * 480 * sizeof(int16_t) * 4;
+  state->depth_compress_buf = (uint8_t*) malloc(state->depth_compress_buf_size);
+  state->msg.depth.depth_data = state->depth_compress_buf;
   state->msg.depth.width = FREENECT_FRAME_W;
   state->msg.depth.height = FREENECT_FRAME_H;
 
