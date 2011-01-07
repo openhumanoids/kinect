@@ -34,53 +34,6 @@ typedef struct _KinectRenderer {
 } KinectRenderer;
 
 static void
-recompute_frame_data(KinectRenderer* self);
-
-#if 0
-/** Given an array of colors, a palette is created that linearly interpolates through all the colors. **/
-static void color_util_build_color_table(double color_palette[][3], int palette_size, float lut[][3], int lut_size)
-{
-    for (int idx = 0; idx < lut_size; idx++) {
-        double znorm = ((double) idx) / lut_size;
-
-        int color_index = (palette_size - 1) * znorm;
-        double alpha = (palette_size - 1) * znorm - color_index;
-        
-        for (int i = 0; i < 3; i++) {
-            lut[idx][i] = color_palette[color_index][i] * (1.0 - alpha) + color_palette[color_index+1][i]*alpha;
-        }    
-    }
-}
-
-#define JET_COLORS_LUT_SIZE 1024
-static float jet_colors[JET_COLORS_LUT_SIZE][3];
-static int jet_colors_initialized = 0;
-
-static void init_color_table_jet()
-{
-    double jet[][3] = {{ 0,   0,   1 },
-                       { 0,  .5,  .5 },
-                       { .8, .8,   0 },
-                       { 1,   0,   0 }};
-
-    color_util_build_color_table(jet, sizeof(jet)/(sizeof(double)*3), jet_colors, JET_COLORS_LUT_SIZE);
-    jet_colors_initialized = 1;
-}
-
-static inline float *color_util_jet(double v)
-{
-    if (!jet_colors_initialized)
-        init_color_table_jet();
-
-    v = fmax(0, v);
-    v = fmin(1, v);
-
-    int idx = (JET_COLORS_LUT_SIZE - 1) * v;
-    return jet_colors[idx];
-}
-#endif
-
-static void
 recompute_frame_data(KinectRenderer* self)
 {
     if(!self->msg) {
@@ -206,9 +159,9 @@ static void _draw(BotViewer *viewer, BotRenderer *renderer)
 
     float so = self->kcal->shift_offset;
     double depth_to_rgb_uvd[12];
-    kinect_calib_get_depth_uvd_to_rgb_uvw_3x4(self->kcal, depth_to_rgb_uvd);
-
     double depth_to_depth_xyz[16];
+
+    kinect_calib_get_depth_uvd_to_rgb_uvw_3x4(self->kcal, depth_to_rgb_uvd);
     kinect_calib_get_depth_uvd_to_depth_xyz_4x4(self->kcal, depth_to_depth_xyz);
 
     double depth_to_depth_xyz_trans[16];
@@ -216,15 +169,16 @@ static void _draw(BotViewer *viewer, BotRenderer *renderer)
 
     glPushMatrix();
     glMultMatrixd(depth_to_depth_xyz_trans);
+
+    glEnable(GL_DEPTH_TEST);
     glPointSize(2.0f);
     glBegin(GL_POINTS);
     glColor3f(0, 0, 0);
     for(int u=0; u<self->width; u++) {
         for(int v=0; v<self->height; v++) {
             uint16_t disparity = self->disparity[v*self->width+u];
-            float d = 0.125 * (so - disparity);
 
-            double uvd_depth[4] = { u, v, d, 1 };
+            double uvd_depth[4] = { u, v, disparity, 1 };
             double uvd_rgb[3];
             _matrix_vector_multiply_3x4_4d(depth_to_rgb_uvd, uvd_depth, uvd_rgb);
 
@@ -250,7 +204,7 @@ static void _draw(BotViewer *viewer, BotRenderer *renderer)
 
             glColor3f(r / 255.0, g / 255.0, b / 255.0);
 
-            glVertex3f(u, v, d);
+            glVertex3f(u, v, disparity);
         }
     }
     glEnd();
@@ -293,39 +247,22 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, lcm_t* lcm, int priority)
     self->kcal = kinect_calib_new();
     self->kcal->width = 640;
     self->kcal->height = 480;
-#if 0
-    self->kcal->intrinsics_depth.fx = 579.97821782;
-    self->kcal->intrinsics_depth.cx = 317.80483131;
-    self->kcal->intrinsics_depth.cy = 243.16590456;
 
-    self->kcal->intrinsics_rgb.fx = 518.12282951;
-    self->kcal->intrinsics_rgb.cx = 322.60598443;
-    self->kcal->intrinsics_rgb.cy = 262.56367112;
-    self->kcal->intrinsics_rgb.k1 = 0.17730118;
-    self->kcal->intrinsics_rgb.k2 = -0.35126598;
+    self->kcal->intrinsics_depth.fx = 576.09757860;
+    self->kcal->intrinsics_depth.cx = 321.06398107;
+    self->kcal->intrinsics_depth.cy = 242.97676897;
 
-    self->kcal->shift_offset = 1101.5254;
-    self->kcal->projector_depth_baseline = 0.07710;
+    self->kcal->intrinsics_rgb.fx = 528.49404721;
+    self->kcal->intrinsics_rgb.cx = 319.50000000;
+    self->kcal->intrinsics_rgb.cy = 239.50000000;
+    self->kcal->intrinsics_rgb.k1 = 0;
+    self->kcal->intrinsics_rgb.k2 = 0;
 
-    double R[9] = { 0.999997, -0.002517, -0.000720, 0.002518, 0.999995, 0.001772,  0.000716, -0.001774, 0.999998 };
-    double T[3] = { -0.025318, 0.000415, -0.011306 };
-#else
-    self->kcal->intrinsics_depth.fx = 580.06887971;
-    self->kcal->intrinsics_depth.cx = 324.15898680;
-    self->kcal->intrinsics_depth.cy = 238.02660584;
+    self->kcal->shift_offset = 1079.4753;
+    self->kcal->projector_depth_baseline = 0.07214;;
 
-    self->kcal->intrinsics_rgb.fx = 518.22278379;
-    self->kcal->intrinsics_rgb.cx = 318.57466440;
-    self->kcal->intrinsics_rgb.cy = 256.95963149;
-    self->kcal->intrinsics_rgb.k1 = 0.15272473;
-    self->kcal->intrinsics_rgb.k2 = -0.26339203;
-
-    self->kcal->shift_offset = 1035.9168;
-    self->kcal->projector_depth_baseline = 0.02663;
-
-    double R[9] = { 0.999899, 0.006075, -0.012839, -0.006119, 0.999976, -0.003321, 0.012819, 0.003399, 0.999912 };
-    double T[3] = { -0.006699, 0.000942, -0.033191 };
-#endif
+    double R[9] = { 0.999999, -0.000796, 0.001256, 0.000739, 0.998970, 0.045368, -0.001291, -0.045367, 0.998970 };
+    double T[3] = { -0.015756, -0.000923, 0.002316 };
 
     memcpy(self->kcal->depth_to_rgb_rot, R, 9*sizeof(double));
     memcpy(self->kcal->depth_to_rgb_translation, T, 3*sizeof(double));

@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -20,13 +21,27 @@ void
 kinect_calib_get_depth_uvd_to_depth_xyz_4x4(const KinectCalibration* kcal, 
         double result[16])
 {
-//    float so = 1101.5254;
+#if 0
     double k_inv[] = {
         1, 0, 0, -kcal->intrinsics_depth.cx,
         0, 1, 0, -kcal->intrinsics_depth.cy,
         0, 0, 0, kcal->intrinsics_depth.fx,
         0, 0, 1/kcal->projector_depth_baseline, 0
     };
+#else
+    double fx_inv = 1 / kcal->intrinsics_depth.fx;
+    double pdb_inv = 1 / kcal->projector_depth_baseline;
+    double a = -0.125 * fx_inv * pdb_inv;
+    double b = 0.125 * kcal->shift_offset * fx_inv * pdb_inv;
+    double cx = kcal->intrinsics_depth.cx;
+    double cy = kcal->intrinsics_depth.cy;
+    double k_inv[] = {
+        fx_inv, 0, 0, -cx * fx_inv,
+        0, fx_inv, 0, -cy * fx_inv,
+        0, 0, 0, 1,
+        0, 0, a, b 
+    };
+#endif
     memcpy(result, k_inv, 16*sizeof(double));
 }
 
