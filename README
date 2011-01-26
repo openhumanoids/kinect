@@ -23,3 +23,11 @@ Requirements:
 
   Optional:
       libbot2 (https://svn.csail.mit.edu/libbot2)
+  
+
+  Debian/Ubuntu packages:
+    libusb-1.0-0-dev
+    freeglut3-dev
+
+    (no official packages exist for LCM or libbot2, those must be installed
+     from source)

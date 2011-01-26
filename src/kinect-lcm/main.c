@@ -128,7 +128,12 @@ populate_status(state_t* state, kinect_frame_msg_t* msg, int64_t timestamp)
 
   msg->accel[0] = dx;
   msg->accel[1] = dy;
-  msg->accel[2] = dz;
+
+  // XXX the kinect accelerometer appears to use a left-handed coordinate
+  // frame, where Z points in towards the camera.  We could invert it here 
+  // to make it more consistent with standard coordinate frames.
+  msg->accel[2] = dz; 
+
   msg->tilt_radians = freenect_get_tilt_degs(state->tilt_state) * M_PI / 180;
 
   msg->led_status = state->current_led;
