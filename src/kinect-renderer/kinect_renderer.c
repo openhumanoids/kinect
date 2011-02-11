@@ -158,7 +158,7 @@ static void _draw(BotViewer *viewer, BotRenderer *renderer)
         recompute_frame_data(self);
 
     glPushMatrix();
-    if (self->frames==NULL || !bot_frames_have_trans(self->frames,self->kinect_frame,"local")){
+    if (self->frames==NULL || !bot_frames_have_trans(self->frames,self->kinect_frame,bot_frames_get_root_name(self->frames))){
       // rotate so that X is forward and Z is up
       glRotatef(-90, 0, 0, 1);
       glRotatef(-90, 1, 0, 0);
