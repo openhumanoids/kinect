@@ -7,24 +7,30 @@ endif(NOT BOT2_VIS_FOUND)
 
 add_definitions(-Wall -std=gnu99)
 
-add_library(kinect-render SHARED 
+add_library(kinect-renderer SHARED 
     kinect_renderer.c
     jpeg-utils-ijg.c
     )
+pods_install_headers(kinect_renderer.h 
+    DESTINATION kinect)
+
+pods_install_libraries(kinect-renderer)
+
+pods_install_pkg_config_file(kinect-renderer
+    LIBS -lkinect-renderer -ljpeg -l${LCMTYPES_LIBS}
+    REQUIRES bot2-vis bot2-frames kinect-utils
+    VERSION 0.0.1)
+
 
 add_executable(kinect-viewer main.c)
-
-target_link_libraries(kinect-viewer 
-    kinect-render
-    jpeg
-    ${LCMTYPES_LIBS})
-
 pods_use_pkg_config_packages(kinect-viewer
     glib-2.0
     bot2-vis
+    bot2-frames
     lcm
-    kinect-utils)
+    kinect-utils
+    kinect-renderer)
 
-pods_install_libraries(kinect-render)
+pods_install_libraries(kinect-renderer)
 
 pods_install_executables(kinect-viewer)

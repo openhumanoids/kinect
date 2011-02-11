@@ -6,7 +6,7 @@ set_target_properties(kinect-utils PROPERTIES SOVERSION 1)
 
 pods_install_headers(kinect-calib.h 
     kinect-utils.h
-    DESTINATION kinect-utils)
+    DESTINATION kinect)
 
 pods_install_libraries(kinect-utils)
 

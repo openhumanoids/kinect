@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
 
     // setup renderers
     bot_viewer_add_stock_renderer(viewer, BOT_VIEWER_STOCK_RENDERER_GRID, 1);
-    kinect_add_renderer_to_viewer(viewer, app.lcm, 0);
+    kinect_add_renderer_to_viewer(viewer, 0,app.lcm,NULL,NULL);
 
     // load saved preferences
     char *fname = g_build_filename(g_get_user_config_dir(), ".kinect-viewerrc", NULL);

@@ -1,12 +1,14 @@
+#include "kinect_renderer.h"
 #include <zlib.h>
 
 #include <lcm/lcm.h>
 
 #include <bot_core/bot_core.h>
 #include <bot_vis/bot_vis.h>
+#include <bot_frames/bot_frames.h>
 
 #include <lcmtypes/kinect_frame_msg_t.h>
-#include <kinect-utils/kinect-utils.h>
+#include <kinect/kinect-utils.h>
 
 #include "jpeg-utils-ijg.h"
 
@@ -15,6 +17,8 @@ typedef struct _KinectRenderer {
     BotGtkParamWidget *pw;
     BotViewer   *viewer;
     lcm_t     *lcm;
+    BotFrames *frames;
+    char * kinect_frame;
 
     kinect_frame_msg_t* msg;
 
@@ -153,11 +157,23 @@ static void _draw(BotViewer *viewer, BotRenderer *renderer)
     if(self->need_to_recompute_frame_data)
         recompute_frame_data(self);
 
-    // rotate so that X is forward and Z is up
-    glRotatef(-90, 0, 0, 1);
-    glRotatef(-90, 1, 0, 0);
+    glPushMatrix();
+    if (self->frames==NULL || !bot_frames_have_trans(self->frames,self->kinect_frame,"local")){
+      // rotate so that X is forward and Z is up
+      glRotatef(-90, 0, 0, 1);
+      glRotatef(-90, 1, 0, 0);
+    }
+    else{
+      //project to current frame
+      double kinect_to_local_m[16];
+      bot_frames_get_trans_mat_4x4(self->frames,self->kinect_frame,bot_frames_get_root_name(self->frames),kinect_to_local_m);
+      // opengl expects column-major matrices
+      double kinect_to_local_m_opengl[16];
+      bot_matrix_transpose_4x4d(kinect_to_local_m, kinect_to_local_m_opengl);
+      glMultMatrixd(kinect_to_local_m_opengl);
+    }
 
-    float so = self->kcal->shift_offset;
+    //    float so = self->kcal->shift_offset; //unused
     double depth_to_rgb_uvd[12];
     double depth_to_depth_xyz[16];
 
@@ -209,6 +225,8 @@ static void _draw(BotViewer *viewer, BotRenderer *renderer)
     }
     glEnd();
     glPopMatrix();
+
+    glPopMatrix(); //kinect_to_local
 }
 
 static void _free(BotRenderer *renderer)
@@ -225,12 +243,14 @@ static void _free(BotRenderer *renderer)
 
     free(self->disparity);
     free(self->rgb_data);
+    if(self->kinect_frame)
+      free(self->kinect_frame);
 
     free(self);
 }
 
 void 
-kinect_add_renderer_to_viewer(BotViewer* viewer, lcm_t* lcm, int priority)
+kinect_add_renderer_to_viewer(BotViewer* viewer, int priority, lcm_t* lcm, BotFrames * frames, const char * kinect_frame)
 {
     KinectRenderer *self = (KinectRenderer*) calloc(1, sizeof(KinectRenderer));
 
@@ -239,6 +259,10 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, lcm_t* lcm, int priority)
     self->height = 480;
     self->disparity = (uint16_t*) malloc(self->width * self->height * sizeof(uint16_t));
     self->rgb_data = (uint8_t*) malloc(self->width * self->height * 3);
+
+    self->frames = frames;
+    if (self->frames!=NULL)
+      self->kinect_frame = strdup(kinect_frame);
 
     self->msg = NULL;
 
