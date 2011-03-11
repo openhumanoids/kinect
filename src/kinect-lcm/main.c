@@ -510,7 +510,7 @@ freenect_threadfunc(void *user_data)
 #endif
 
     if(rate_check(state->report_rate)) {
-      printf("Capture rate: %.2fHz (%6"PRId64")\n", state->capture_rate->current_hz, state->capture_rate->tick_count);
+      printf("Capture rate: %5.2fHz (%6"PRId64")\n", state->capture_rate->current_hz, state->capture_rate->tick_count);
     }
   }
 
