@@ -282,7 +282,7 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, int priority, lcm_t* lcm, BotFr
     self->kcal->intrinsics_rgb.k1 = 0;
     self->kcal->intrinsics_rgb.k2 = 0;
 
-    self->kcal->shift_offset = 1079.4753;
+    self->kcal->shift_offset = 1093.4753;
     self->kcal->projector_depth_baseline = 0.07214;;
 
     double R[9] = { 0.999999, -0.000796, 0.001256, 0.000739, 0.998970, 0.045368, -0.001291, -0.045367, 0.998970 };
