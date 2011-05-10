@@ -5,6 +5,7 @@
 #include <poll.h>
 
 #include <zlib.h>
+#include <glib.h>
 
 #include <lcm/lcm.h>
 #include <lcmtypes/kinect_depth_msg_t.h>
@@ -196,6 +197,17 @@ on_frame(const lcm_recv_buf_t* lcm, const char* channel, const kinect_frame_msg_
     }
 }
 
+static void usage(const char* progname)
+{
+  fprintf (stderr, "Usage: %s [options]\n"
+                   "\n"
+                   "Options:\n"
+                   "  -l URL    Specify LCM URL\n"
+                   "  -h        This help message\n", 
+                   g_path_get_basename(progname));
+  exit(1);
+}
+
 int main(int argc, char **argv)
 {
 	int res;
@@ -230,7 +242,20 @@ int main(int argc, char **argv)
 
 	InitGL(1280, 480);
 
-    lcm = lcm_create(NULL);
+    int c;
+    char *lcm_url = NULL;
+    while ((c = getopt (argc, argv, "hl:")) >= 0) {
+        switch (c) {
+            case 'l':
+                lcm_url = strdup(optarg);
+                printf("Using LCM URL \"%s\"\n", lcm_url);
+                break;
+            case 'h':
+            case '?':
+                usage(argv[0]);
+        }
+    }
+    lcm = lcm_create(lcm_url);
 
     kinect_frame_msg_t_subscribe(lcm, "KINECT_FRAME", on_frame, NULL);
 

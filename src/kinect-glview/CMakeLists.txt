@@ -2,6 +2,7 @@ add_executable(kinect-glview main.c jpeg-utils-ijg.c)
 
 pods_use_pkg_config_packages(kinect-glview 
     lcm
+    glib-2.0
     )
 
 target_link_libraries(kinect-glview 

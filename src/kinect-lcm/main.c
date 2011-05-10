@@ -537,6 +537,7 @@ static void usage(const char* progname)
                    "  -j        JPEG-compress RGB images\n"
                    "  -q QUAL   JPEG compression quality (0-100, default 94)\n"
                    "  -z        ZLib compress depth images\n"
+                   "  -l URL    Specify LCM URL\n"
                    "  -h        This help message\n", 
                    g_path_get_basename(progname));
   exit(1);
@@ -572,8 +573,9 @@ int main(int argc, char **argv)
   state->current_led = state->requested_led;
 
   int c;
+  char *lcm_url = NULL;
   // command line options - to throtle - to ignore image publish  
-  while ((c = getopt (argc, argv, "hdir:jq:z")) >= 0) {
+  while ((c = getopt (argc, argv, "hdir:jq:zl:")) >= 0) {
     switch (c) {
       case 'i': //ignore images 
         state->skip_img = 1;
@@ -600,6 +602,10 @@ int main(int argc, char **argv)
         target_rate = strtod (optarg,NULL);
         printf("Target Rate is : %.3f Hz\n", target_rate); 
         state->throttle = 1;
+        break;
+      case 'l':
+        lcm_url = strdup(optarg);
+        printf("Using LCM URL \"%s\"\n", lcm_url);
         break;
 
         //add option to select the image/depth type 
@@ -660,7 +666,7 @@ int main(int argc, char **argv)
   // initialize LCM
   state->msg_channel = g_strdup("KINECT_FRAME");
 
-  state->lcm = lcm_create(NULL);
+  state->lcm = lcm_create(lcm_url);
 
   if(!state->lcm) {
     fprintf(stderr, "Unable to initialize LCM\n");
