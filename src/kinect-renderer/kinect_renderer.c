@@ -166,7 +166,8 @@ static void _draw(BotViewer *viewer, BotRenderer *renderer)
     else{
       //project to current frame
       double kinect_to_local_m[16];
-      bot_frames_get_trans_mat_4x4(self->frames,self->kinect_frame,bot_frames_get_root_name(self->frames),kinect_to_local_m);
+      bot_frames_get_trans_mat_4x4_with_utime(self->frames,self->kinect_frame,bot_frames_get_root_name(self->frames),
+          self->msg->timestamp, kinect_to_local_m);
       // opengl expects column-major matrices
       double kinect_to_local_m_opengl[16];
       bot_matrix_transpose_4x4d(kinect_to_local_m, kinect_to_local_m_opengl);
