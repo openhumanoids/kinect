@@ -4,7 +4,18 @@
 #include <boost/numeric/ublas/io.hpp>
 #include <boost/format.hpp>
 #include <boost/lexical_cast.hpp>
+
 #include "openni_camera/openni_exception.h"
+#include "openni_camera/openni_depth_image.h"
+
+#include <lcmtypes/kinect_depth_msg_t.h>
+#include <lcmtypes/kinect_image_msg_t.h>
+#include <lcmtypes/kinect_frame_msg_t.h>
+#include <lcmtypes/kinect_cmd_msg_t.h>
+#include <bot_core/timestamp.h>
+
+#include <zlib.h>
+#include <glib.h>
 
 namespace po = boost::program_options;
 
@@ -119,10 +130,70 @@ void KinectOpenniLCM::stopSynchronization ()
 
 void KinectOpenniLCM::ImageCallback (boost::shared_ptr<openni_wrapper::Image> image, void* cookie)
 {
-  std::cout << "got an image" << std::endl;
+  int64_t thisTime = bot_timestamp_now();
+  int64_t diffTime = thisTime - m_lastImageTime;
+  int64_t diffFromDepthTime = thisTime - m_lastDepthTime;
+
+  //std::cout << "got an image     :" << thisTime << ", " << ((float)diffTime/1000000.0f) << ", " << ((float)diffFromDepthTime/1000000.0f) << std::endl;
+
+  m_lastImageTime = thisTime;
 }
 
 void KinectOpenniLCM::DepthCallback (boost::shared_ptr<openni_wrapper::DepthImage> depth_image, void* cookie)
 {
-  std::cout << "got a depth image" << std::endl;
+  int64_t thisTime = bot_timestamp_now();
+  int64_t diffTime = thisTime - m_lastDepthTime;
+  int64_t diffFromImageTime = thisTime - m_lastImageTime;
+
+  //std::cout << "got a depth image:" << thisTime << ", " << ((float)diffTime/1000000.0f) << ", " << ((float)diffFromImageTime/1000000.0f) << std::endl;
+
+  m_lastDepthTime = thisTime;
+
+  kinect_frame_msg_t msg;
+  msg.timestamp = thisTime;
+
+  msg.image.timestamp = thisTime;
+  msg.image.width = 0;
+  msg.image.height = 0;
+  msg.image.image_data_nbytes = 0;
+  msg.image.image_data_format = KINECT_IMAGE_MSG_T_VIDEO_NONE;
+
+  msg.depth.timestamp = thisTime;
+  msg.depth.width = depth_image->getWidth();
+  msg.depth.height = depth_image->getHeight();
+  msg.depth.compression = KINECT_DEPTH_MSG_T_COMPRESSION_NONE;
+  msg.depth.depth_data_format = KINECT_DEPTH_MSG_T_DEPTH_11BIT;
+  msg.depth.depth_data_nbytes = depth_image->getHeight() * depth_image->getWidth() * sizeof(short);
+  msg.depth.uncompressed_size = msg.depth.depth_data_nbytes;
+  msg.depth.depth_data = new uint8_t[msg.depth.depth_data_nbytes];
+  
+  
+  depth_image->fillDisparityImage(msg.depth.width, msg.depth.height, reinterpret_cast<unsigned short*>(msg.depth.depth_data), depth_image->getWidth() * sizeof(short));
+  /*
+  unsigned short* s = (unsigned short*)msg.depth.depth_data;
+  unsigned int si = msg.depth.depth_data_nbytes / sizeof(short);
+  for ( unsigned int i = 0; i < si; i++ ) {
+    std::cout << boost::format("%04X") % s[i] << ", ";
+  }
+  std::cout << std::endl;
+  exit(-1);
+  */
+  /*
+  void* src = (void*)depth_image->getDepthMetaData().Data();
+  unsigned long srcSize = depth_image->getDepthMetaData().DataSize();
+  void* dest = msg.depth.depth_data;
+  unsigned long destSize = msg.depth.depth_data_nbytes;
+  compress2((Bytef*)dest, &destSize, (const Bytef*)src, srcSize, Z_BEST_SPEED);
+  msg.depth.depth_data_nbytes = (int)destSize;
+  msg.depth.compression = KINECT_DEPTH_MSG_T_COMPRESSION_ZLIB;
+  */
+
+  /*
+  std::cout << "   w=" << msg.depth.width 
+	    << ", h="  << msg.depth.height 
+	    << ", s=" << msg.depth.depth_data_nbytes << std::endl;
+  */
+  kinect_frame_msg_t_publish(m_lcm, "KINECT_FRAME", &msg);
+
+  delete msg.depth.depth_data;
 }

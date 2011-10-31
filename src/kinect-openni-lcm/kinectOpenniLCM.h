@@ -33,6 +33,8 @@ class KinectOpenniLCM
  private:
 
   lcm_t* m_lcm;
+  int64_t m_lastImageTime;
+  int64_t m_lastDepthTime;
 
   boost::shared_ptr<openni_wrapper::OpenNIDevice> m_device;
 };

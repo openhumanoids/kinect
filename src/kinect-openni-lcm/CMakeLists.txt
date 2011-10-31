@@ -1,5 +1,7 @@
 add_definitions(-Wall)
 
+set(CMAKE_CXX_FLAGS "-g")
+
 #include_directories(/opt/ros/electric/stacks/openni_kinect/openni_camera/include /usr/include/openni)
 include_directories(. openni_camera /usr/include/openni)
 #link_directories(/opt/ros/electric/stacks/openni_kinect/openni_camera/lib)
