@@ -538,7 +538,9 @@ static void usage(const char* progname)
                    "  -q QUAL   JPEG compression quality (0-100, default 94)\n"
                    "  -z        ZLib compress depth images\n"
                    "  -l URL    Specify LCM URL\n"
-                   "  -h        This help message\n", 
+                   "  -h        This help message\n"
+	           "  -n dev    Number of the device to open\n"
+	           "  -c name   LCM channel\n", 
                    g_path_get_basename(progname));
   exit(1);
 }
@@ -571,11 +573,13 @@ int main(int argc, char **argv)
   state->current_image_format = state->requested_image_format;
   state->current_depth_format = state->requested_depth_format;
   state->current_led = state->requested_led;
+  int user_device_number = 0;
+  state->msg_channel = g_strdup("KINECT_FRAME");
 
   int c;
   char *lcm_url = NULL;
   // command line options - to throtle - to ignore image publish  
-  while ((c = getopt (argc, argv, "hdir:jq:zl:")) >= 0) {
+  while ((c = getopt (argc, argv, "hdir:jq:zl:n:c:")) >= 0) {
     switch (c) {
       case 'i': //ignore images 
         state->skip_img = 1;
@@ -594,6 +598,10 @@ int main(int argc, char **argv)
         if(state->jpeg_quality < 0 || state->jpeg_quality > 100)
           usage(argv[0]);
         break;
+      case 'n' :
+	user_device_number = atoi(optarg);
+	printf("attempting to open device %i\n", user_device_number);
+	break;
       case 'z':
         state->use_zlib = 1;
         printf("ZLib compressing depth data\n");
@@ -607,19 +615,24 @@ int main(int argc, char **argv)
         lcm_url = strdup(optarg);
         printf("Using LCM URL \"%s\"\n", lcm_url);
         break;
-
-        //add option to select the image/depth type 
-
+      case 'c':
+	g_free(state->msg_channel);
+	state->msg_channel = g_strdup(optarg);
+	printf("Output on LCM channel: %s\n", state->msg_channel);
+	break;
       case 'h':
       case '?':
         usage(argv[0]);
     }
   }
 
-  // 
+  /*
   int user_device_number = 0;
-  if (argc > 1)
+  if (argc > 1) {
     user_device_number = atoi(argv[1]);
+    printf("attempting to open device %i\n", user_device_number);
+  }
+  */
 
   // throttling
   state->capture_rate = rate_new(target_rate);
@@ -664,7 +677,6 @@ int main(int argc, char **argv)
   state->last_timestamp = 0;
 
   // initialize LCM
-  state->msg_channel = g_strdup("KINECT_FRAME");
 
   state->lcm = lcm_create(lcm_url);
 
