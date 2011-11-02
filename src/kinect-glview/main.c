@@ -10,6 +10,7 @@
 #include <lcm/lcm.h>
 #include <lcmtypes/kinect_depth_msg_t.h>
 #include <lcmtypes/kinect_frame_msg_t.h>
+#include <pthread.h>
 
 #if defined(__APPLE__)
 #include <GLUT/glut.h>
@@ -39,45 +40,51 @@ GLuint gl_rgb_tex;
 
 lcm_t* lcm = NULL;
 
+pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
+
 void DrawGLScene()
 {
-    struct pollfd pfd = { lcm_get_fileno(lcm), POLLIN, 0 };
-    int status = poll (&pfd, 1, 10);
-    if (status > 0) {
-        lcm_handle(lcm);
-    }
-
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glLoadIdentity();
-
-	glEnable(GL_TEXTURE_2D);
-
-	glBindTexture(GL_TEXTURE_2D, gl_depth_tex);
-	glTexImage2D(GL_TEXTURE_2D, 0, 3, 640, 480, 0, GL_RGB, GL_UNSIGNED_BYTE, depth_img);
-
-	glBegin(GL_TRIANGLE_FAN);
-	glColor4f(255.0f, 255.0f, 255.0f, 255.0f);
-	glTexCoord2f(0, 0); glVertex3f(0,0,0);
-	glTexCoord2f(1, 0); glVertex3f(640,0,0);
-	glTexCoord2f(1, 1); glVertex3f(640,480,0);
-	glTexCoord2f(0, 1); glVertex3f(0,480,0);
-	glEnd();
-
-	glBindTexture(GL_TEXTURE_2D, gl_rgb_tex);
-//	if (current_format == FREENECT_VIDEO_RGB || current_format == FREENECT_VIDEO_YUV_RGB)
-    glTexImage2D(GL_TEXTURE_2D, 0, 3, 640, 480, 0, GL_RGB, GL_UNSIGNED_BYTE, rgb);
-//	else
-//		glTexImage2D(GL_TEXTURE_2D, 0, 1, 640, 480, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, rgb_front+640*4);
-
-	glBegin(GL_TRIANGLE_FAN);
-	glColor4f(255.0f, 255.0f, 255.0f, 255.0f);
-	glTexCoord2f(0, 0); glVertex3f(640,0,0);
-	glTexCoord2f(1, 0); glVertex3f(1280,0,0);
-	glTexCoord2f(1, 1); glVertex3f(1280,480,0);
-	glTexCoord2f(0, 1); glVertex3f(640,480,0);
-	glEnd();
-
-	glutSwapBuffers();
+  struct pollfd pfd = { lcm_get_fileno(lcm), POLLIN, 0 };
+  int status = poll (&pfd, 1, 10);
+  if (status > 0) {
+    lcm_handle(lcm);
+  }
+  
+  pthread_mutex_lock( &mutex1 );
+  
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  glLoadIdentity();
+  
+  glEnable(GL_TEXTURE_2D);
+  
+  glBindTexture(GL_TEXTURE_2D, gl_depth_tex);
+  glTexImage2D(GL_TEXTURE_2D, 0, 3, 640, 480, 0, GL_RGB, GL_UNSIGNED_BYTE, depth_img);
+	
+  glBegin(GL_TRIANGLE_FAN);
+  glColor4f(255.0f, 255.0f, 255.0f, 255.0f);
+  glTexCoord2f(0, 0); glVertex3f(0,0,0);
+  glTexCoord2f(1, 0); glVertex3f(640,0,0);
+  glTexCoord2f(1, 1); glVertex3f(640,480,0);
+  glTexCoord2f(0, 1); glVertex3f(0,480,0);
+  glEnd();
+  
+  glBindTexture(GL_TEXTURE_2D, gl_rgb_tex);
+  //	if (current_format == FREENECT_VIDEO_RGB || current_format == FREENECT_VIDEO_YUV_RGB)
+  glTexImage2D(GL_TEXTURE_2D, 0, 3, 640, 480, 0, GL_RGB, GL_UNSIGNED_BYTE, rgb);
+  //	else
+  //		glTexImage2D(GL_TEXTURE_2D, 0, 1, 640, 480, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, rgb_front+640*4);
+  
+  glBegin(GL_TRIANGLE_FAN);
+  glColor4f(255.0f, 255.0f, 255.0f, 255.0f);
+  glTexCoord2f(0, 0); glVertex3f(640,0,0);
+  glTexCoord2f(1, 0); glVertex3f(1280,0,0);
+  glTexCoord2f(1, 1); glVertex3f(1280,480,0);
+  glTexCoord2f(0, 1); glVertex3f(640,480,0);
+  glEnd();
+	
+  glutSwapBuffers();
+  
+  pthread_mutex_unlock( &mutex1 );
 }
 
 void keyPressed(unsigned char key, int x, int y)
@@ -121,80 +128,90 @@ uint16_t t_gamma[2048];
 static void
 on_frame(const lcm_recv_buf_t* lcm, const char* channel, const kinect_frame_msg_t* msg, void* user)
 {
-    // TODO check image width, height
+  // TODO check image width, height
 
-    if(msg->image.image_data_nbytes) {
-        if(msg->image.image_data_format == KINECT_IMAGE_MSG_T_VIDEO_RGB) {
-            memcpy(rgb, msg->image.image_data, width * height * 3);
-        } else if(msg->image.image_data_format == KINECT_IMAGE_MSG_T_VIDEO_RGB_JPEG) {
-            jpegijg_decompress_8u_rgb (msg->image.image_data, msg->image.image_data_nbytes,
-                    rgb, width, height, width * 3);
-        }
+  if(msg->image.image_data_nbytes) {
+    if(msg->image.image_data_format == KINECT_IMAGE_MSG_T_VIDEO_RGB) {
+      memcpy(rgb, msg->image.image_data, width * height * 3);
+    } else if(msg->image.image_data_format == KINECT_IMAGE_MSG_T_VIDEO_RGB_JPEG) {
+      jpegijg_decompress_8u_rgb (msg->image.image_data, msg->image.image_data_nbytes,
+				 rgb, width, height, width * 3);
     }
+  }
 
-    if(msg->depth.depth_data_nbytes) {
-        int i;
-        const uint16_t* depth = NULL;
-        if(msg->depth.compression == KINECT_DEPTH_MSG_T_COMPRESSION_NONE) {
-            depth = (uint16_t*) msg->depth.depth_data;
-        } else if (msg->depth.compression == KINECT_DEPTH_MSG_T_COMPRESSION_ZLIB) {
-            unsigned long dlen = msg->depth.uncompressed_size;
-            uncompress(depth_uncompress_buffer, &dlen, msg->depth.depth_data, msg->depth.depth_data_nbytes);
-            depth = (uint16_t*) depth_uncompress_buffer;
-        }
+  if(msg->depth.depth_data_nbytes) {
+    int i;
+    const uint16_t* depth = NULL;
+    if(msg->depth.compression == KINECT_DEPTH_MSG_T_COMPRESSION_NONE) {
+      depth = (uint16_t*) msg->depth.depth_data;
+    } else if (msg->depth.compression == KINECT_DEPTH_MSG_T_COMPRESSION_ZLIB) {
+      unsigned long dlen = msg->depth.uncompressed_size;
+      uncompress(depth_uncompress_buffer, &dlen, msg->depth.depth_data, msg->depth.depth_data_nbytes);
+      depth = (uint16_t*) depth_uncompress_buffer;
+      //printf("compressed size=%i\n", msg->depth.depth_data_nbytes);
+      //printf("uncompressed size=%i\n", dlen);
+    }
+    
+    pthread_mutex_lock( &mutex1 );
+    int npixels = width * height;
+    for (i=0; i<npixels; i++) {
+      //printf("%i: %04X\n",  i, depth[i]);
 
-        int npixels = width * height;
-        for (i=0; i<npixels; i++) {
 #if 0
-            int max = 2048;
-            int min = 800;
-            int p = (int)(255 * (depth[i] - min) / (max - min));
-            depth_img[i*3 + 0] = p;
-            depth_img[i*3 + 1] = p;
-            depth_img[i*3 + 2] = p;
+      int max = 2048;
+      int min = 800;
+      int p = (int)(255 * (depth[i] - min) / (max - min));
+      depth_img[i*3 + 0] = p;
+      depth_img[i*3 + 1] = p;
+      depth_img[i*3 + 2] = p;
 #else
-            int pval = t_gamma[depth[i]];
-            int lb = pval & 0xff;
-            switch (pval>>8) {
-                case 0:
-                    depth_img[3*i+0] = 255;
-                    depth_img[3*i+1] = 255-lb;
-                    depth_img[3*i+2] = 255-lb;
-                    break;
-                case 1:
-                    depth_img[3*i+0] = 255;
-                    depth_img[3*i+1] = lb;
-                    depth_img[3*i+2] = 0;
-                    break;
-                case 2:
-                    depth_img[3*i+0] = 255-lb;
-                    depth_img[3*i+1] = 255;
-                    depth_img[3*i+2] = 0;
-                    break;
-                case 3:
-                    depth_img[3*i+0] = 0;
-                    depth_img[3*i+1] = 255;
-                    depth_img[3*i+2] = lb;
-                    break;
-                case 4:
-                    depth_img[3*i+0] = 0;
-                    depth_img[3*i+1] = 255-lb;
-                    depth_img[3*i+2] = 255;
-                    break;
-                case 5:
-                    depth_img[3*i+0] = 0;
-                    depth_img[3*i+1] = 0;
-                    depth_img[3*i+2] = 255-lb;
-                    break;
-                default:
-                    depth_img[3*i+0] = 0;
-                    depth_img[3*i+1] = 0;
-                    depth_img[3*i+2] = 0;
-                    break;
-            }
+      if ( depth[i] >= 2048 ) {
+	continue;
+      }
+      int pval = t_gamma[depth[i]];
+      int lb = pval & 0xff;
+      switch (pval>>8) {
+      case 0:
+	depth_img[3*i+0] = 255;
+	depth_img[3*i+1] = 255-lb;
+	depth_img[3*i+2] = 255-lb;
+	break;
+      case 1:
+	depth_img[3*i+0] = 255;
+	depth_img[3*i+1] = lb;
+	depth_img[3*i+2] = 0;
+	break;
+      case 2:
+	depth_img[3*i+0] = 255-lb;
+	depth_img[3*i+1] = 255;
+	depth_img[3*i+2] = 0;
+	break;
+      case 3:
+	depth_img[3*i+0] = 0;
+	depth_img[3*i+1] = 255;
+	depth_img[3*i+2] = lb;
+	break;
+      case 4:
+	depth_img[3*i+0] = 0;
+	depth_img[3*i+1] = 255-lb;
+	depth_img[3*i+2] = 255;
+	break;
+      case 5:
+	depth_img[3*i+0] = 0;
+	depth_img[3*i+1] = 0;
+	depth_img[3*i+2] = 255-lb;
+	break;
+      default:
+	depth_img[3*i+0] = 0;
+	depth_img[3*i+1] = 0;
+	depth_img[3*i+2] = 0;
+	break;
+      }
 #endif
-        }
     }
+    pthread_mutex_unlock( &mutex1 );
+    //exit(-1);
+  }
 }
 
 static void usage(const char* progname)
@@ -202,69 +219,77 @@ static void usage(const char* progname)
   fprintf (stderr, "Usage: %s [options]\n"
                    "\n"
                    "Options:\n"
-                   "  -l URL    Specify LCM URL\n"
-                   "  -h        This help message\n", 
+                   "  -l URL      Specify LCM URL\n"
+	           "  -c channel  Subscribe channel name\n"
+                   "  -h          This help message\n", 
                    g_path_get_basename(progname));
   exit(1);
 }
 
 int main(int argc, char **argv)
 {
-	int res;
+  int res;
+  
+  width = 640;
+  height = 480;
+  int npixels = width*height;
+  
+  depth_img = malloc(npixels*3);
+  depth_uncompress_buffer = malloc(npixels*sizeof(uint16_t));
+  rgb = malloc(npixels*3);
+  
+  int i;
+  for (i=0; i<2048; i++) {
+    float v = i/2048.0;
+    v = powf(v, 3)* 6;
+    t_gamma[i] = v*6*256;
+  }
+  
+  glutInit(&argc, argv);
+  
+  glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_ALPHA | GLUT_DEPTH);
+  glutInitWindowSize(1280, 480);
+  glutInitWindowPosition(0, 0);
+  
+  window = glutCreateWindow("Kinect LCM viewer");
+  
+  glutDisplayFunc(&DrawGLScene);
+  glutIdleFunc(&DrawGLScene);
+  glutReshapeFunc(&ReSizeGLScene);
+  glutKeyboardFunc(&keyPressed);
 
-    width = 640;
-    height = 480;
-    int npixels = width*height;
+  InitGL(1280, 480);
 
-	depth_img = malloc(npixels*3);
-	depth_uncompress_buffer = malloc(npixels*sizeof(uint16_t));
-	rgb = malloc(npixels*3);
+  char channelName[512];
+  strcpy(channelName, "KINECT_FRAME");
 
-	int i;
-	for (i=0; i<2048; i++) {
-		float v = i/2048.0;
-		v = powf(v, 3)* 6;
-		t_gamma[i] = v*6*256;
-	}
-
-	glutInit(&argc, argv);
-
-	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_ALPHA | GLUT_DEPTH);
-	glutInitWindowSize(1280, 480);
-	glutInitWindowPosition(0, 0);
-
-	window = glutCreateWindow("Kinect LCM viewer");
-
-	glutDisplayFunc(&DrawGLScene);
-	glutIdleFunc(&DrawGLScene);
-	glutReshapeFunc(&ReSizeGLScene);
-	glutKeyboardFunc(&keyPressed);
-
-	InitGL(1280, 480);
-
-    int c;
-    char *lcm_url = NULL;
-    while ((c = getopt (argc, argv, "hl:")) >= 0) {
-        switch (c) {
-            case 'l':
-                lcm_url = strdup(optarg);
-                printf("Using LCM URL \"%s\"\n", lcm_url);
-                break;
-            case 'h':
-            case '?':
-                usage(argv[0]);
-        }
+  int c;
+  char *lcm_url = NULL;
+  while ((c = getopt (argc, argv, "hl:c:")) >= 0) {
+    switch (c) {
+    case 'l':
+      lcm_url = strdup(optarg);
+      printf("Using LCM URL \"%s\"\n", lcm_url);
+      break;
+    case 'c' :
+      strcpy(channelName, optarg);
+      printf("Listening to channel %s\n", channelName);
+      break;    
+    case 'h':
+    case '?':
+      usage(argv[0]);
     }
-    lcm = lcm_create(lcm_url);
+  }
+  lcm = lcm_create(lcm_url);
+  
+  kinect_frame_msg_t_subscribe(lcm, channelName, on_frame, NULL);
+  
+  glutMainLoop();
 
-    kinect_frame_msg_t_subscribe(lcm, "KINECT_FRAME", on_frame, NULL);
-
-    glutMainLoop();
-
-    free(depth_img);
-    free(depth_uncompress_buffer);
-    free(rgb);
-    lcm_destroy(lcm);
-
-	return 0;
+  free(depth_img);
+  free(depth_uncompress_buffer);
+  free(rgb);
+  lcm_destroy(lcm);
+  
+  return 0;
 }

@@ -1,5 +1,8 @@
 add_executable(kinect-glview main.c jpeg-utils-ijg.c)
 
+set(CMAKE_CXX_FLAGS "-g")
+add_definitions(-g)
+
 pods_use_pkg_config_packages(kinect-glview 
     lcm
     glib-2.0
