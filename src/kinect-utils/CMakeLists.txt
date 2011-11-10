@@ -14,7 +14,7 @@ pods_install_pkg_config_file(kinect-utils
     LIBS -lkinect-utils
     VERSION 0.0.1)
 
-add_executable(kinect-pc kinect-pc.cpp kinect-pointcloud-pub.cpp kinect-calib.c)
+#add_executable(kinect-pc kinect-pc.cpp kinect-pointcloud-pub.cpp kinect-calib.c)
 
 pods_use_pkg_config_packages(kinect-pc
     glib-2.0
