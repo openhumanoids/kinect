@@ -22,8 +22,6 @@ pods_use_pkg_config_packages(kinect-pc
     bot2-frames
     lcm bot2-core lcmtypes_kinect )
 
-target_link_libraries(kinect-pc z m ${LCMTYPES_LIBS} ncurses boost_program_options)
+target_link_libraries(kinect-pc z m ${LCMTYPES_LIBS} ncurses boost_program_options boost_thread)
 
-#pods_use_pkg_config_packages(lidar-tilt lcm bot2-core lcmtypes_mapdb lcmtypes_visualization lcmtypes_microstrain_comm glib-2.0 lcmtypes_gui )
-
-pods_install_executables(kinect-pc)
+#pods_install_executables(kinect-pc)

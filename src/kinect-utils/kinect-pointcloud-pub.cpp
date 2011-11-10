@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <zlib.h>
 
+
 namespace po = boost::program_options;
 
 void onKinectFrame(const lcm_recv_buf_t *rbuf, const char *channel, 
@@ -15,15 +16,18 @@ void onKinectFrame(const lcm_recv_buf_t *rbuf, const char *channel,
   return ((KinectPointCloudPub*)user_data)->OnKinectFrame(rbuf, channel, msg);
 }
 
-KinectPointCloudPub::KinectPointCloudPub(int argc, char **argv) 
+KinectPointCloudPub::KinectPointCloudPub(int argc, char **argv) : m_threadExit(false)
 {
   // Declare the supported options.
   po::options_description desc("Allowed options");
   desc.add_options()
     ("help", "produce help message")
-    ( "c", 
+    ( "in", 
       po::value<std::string>(&m_kinectFrameName)->default_value(std::string("KINECT_FRAME")), 
       "input kinect LCM subscribe name")
+    ( "out", 
+      po::value<std::string>(&m_pointCloudName)->default_value(std::string("KINECT_POINTS")), 
+      "output point cloud publication")
     ;
   
   po::variables_map vm;
@@ -61,12 +65,46 @@ KinectPointCloudPub::KinectPointCloudPub(int argc, char **argv)
 
   memcpy(m_calib->depth_to_rgb_rot, R, 9*sizeof(double));
   memcpy(m_calib->depth_to_rgb_translation, T, 3*sizeof(double));
+
+  m_pThread = new boost::thread(&KinectPointCloudPub::PubThread, this ); 
+}
+
+void KinectPointCloudPub::PubThread()
+{
+  boost::unique_lock<boost::mutex> lock(m_pubReadyMutex);
+  while ( !m_threadExit ) {
+    while ( m_pubQueue.empty() && !m_threadExit ) {
+      m_pubReadyCondition.wait(lock);
+    }
+    //std::cout << m_pubQueue.size() << " in queue" << std::endl;
+
+    MessageInfoPtr front = m_pubQueue.front();
+    m_pubQueue.pop();
+
+    kinect_pointcloud_t kpc;
+    kpc.timestamp = front->timestamp;
+    kpc.num = front->x.size();
+    kpc.x = &front->x[0];
+    kpc.y = &front->y[0];
+    kpc.z = &front->z[0];
+    
+    kinect_pointcloud_t_publish(m_lcm, m_pointCloudName.c_str(), &kpc);
+  }
 }
 
 KinectPointCloudPub::~KinectPointCloudPub()
 {
   if ( m_kinectSubscription ) kinect_frame_msg_t_unsubscribe(m_lcm, m_kinectSubscription);
   kinect_calib_destroy(m_calib);
+
+  {
+    boost::unique_lock<boost::mutex> lock(m_pubReadyMutex);
+    m_threadExit = true;
+  }
+  m_pubReadyCondition.notify_all();
+
+  m_pThread->join();
+  delete m_pThread;
 }
 
 void KinectPointCloudPub::OnKinectFrame(const lcm_recv_buf_t *rbuf, const char *channel, 
@@ -92,46 +130,41 @@ void KinectPointCloudPub::OnKinectFrame(const lcm_recv_buf_t *rbuf, const char *
     return;
   }
 
-  //double depth_to_rgb_uvd[12];
   double depth_to_depth_xyz[16];
-  //kinect_calib_get_depth_uvd_to_rgb_uvw_3x4(m_calib, depth_to_rgb_uvd);
   kinect_calib_get_depth_uvd_to_depth_xyz_4x4(m_calib, depth_to_depth_xyz);
 
-  //double depth_to_depth_xyz_trans[16];
-  // _matrix_transpose_4x4d(depth_to_depth_xyz, depth_to_depth_xyz_trans);
-
-
-  std::vector<kinect_point3d_t> points;
-  points.reserve(msg->depth.width * msg->depth.height);
+  MessageInfoPtr info(new MessageInfo(msg->depth.width * msg->depth.height, msg->timestamp));
 
   for ( int u = 0; u < msg->depth.width; u++ ) {
     for ( int v = 0; v < msg->depth.height; v++ ) {
+
+      if (depth_data[v*msg->depth.width + u] == 2047) continue;
+
       double pix[] = { u, v, depth_data[v*msg->depth.width + u], 1.0 };
       double xyz[4];
       bot_matrix_vector_multiply_4x4_4d (depth_to_depth_xyz, pix, xyz);
       //bot_matrix_print(depth_to_depth_xyz,4,4);
-      kinect_point3d_t p;
-      p.x = xyz[0]/xyz[3];
-      p.y = xyz[1]/xyz[3];
-      p.z = xyz[2]/xyz[3];
-      points.push_back(p);
-      //kinect_point3d_t q(p);
-      //if ( u ==0 && v==0 ) {
-      //	std::cout << p.x << "; " << p.y << "; " << p.z << std::endl;
-      //	std::cout << q.x << ": " << q.y << ": " << q.z << std::endl;
-      //}
+      info->push_back(xyz[0]/xyz[3], xyz[1]/xyz[3], xyz[2]/xyz[3]);
       //std::cout << xyz[0] << ", " << xyz[1] << ", " << xyz[2] << ", " << xyz[3] << std::endl;
     }
   }
 
+  {
+    boost::unique_lock<boost::mutex> lock(m_pubReadyMutex);
+    m_pubQueue.push(info);
+    //std::cout << "pushed, size = " << m_pubQueue.size() << std::endl;
+  }
+  m_pubReadyCondition.notify_all();
+  /*
   kinect_pointcloud_t kpc;
   kpc.timestamp = msg->timestamp;
-  kpc.points_nbytes = points.size();
-  kpc.points = &points[0];
+  kpc.num = 10; //x.size();
+  kpc.x = &x[0];
+  kpc.y = &y[0];
+  kpc.z = &z[0];
 
-  //std::cout << points[0].x << ", " << points[0].y << ", " << points[0].z << std::endl;
-
-  kinect_pointcloud_t_publish(m_lcm, "POINTS", &kpc);
+  kinect_pointcloud_t_publish(m_lcm, m_pointCloudName.c_str(), &kpc);
+  */
 }
 
 

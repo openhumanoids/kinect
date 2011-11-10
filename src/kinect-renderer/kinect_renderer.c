@@ -226,7 +226,23 @@ static void _draw(BotViewer *viewer, BotRenderer *renderer)
     }
     glEnd();
     glPopMatrix();
+    /*
+    glPointSize(2.1f);
+    glBegin(GL_POINTS);
+    for ( int u = 0; u < 640; u++ ) {
+      for ( int v = 0; v < 480; v++ ) {
+	if (self->disparity[v*640 + u] == 2047) continue;
 
+	double pix[] = { u, v, self->disparity[v*640 + u], 1.0 };
+	double xyz[4];
+	bot_matrix_vector_multiply_4x4_4d (depth_to_depth_xyz, pix, xyz);
+
+	glColor3f(0.0f, 0.0f, 1.0f);
+	glVertex3f(xyz[0]/xyz[3], xyz[1]/xyz[3], xyz[2]/xyz[3]);
+      }
+    }
+    glEnd();
+    */
     glPopMatrix(); //kinect_to_local
 }
 

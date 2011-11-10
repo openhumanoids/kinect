@@ -5,6 +5,8 @@ struct pointcloud_t
     // acquisition time (adjusted to host clock)
     int64_t  timestamp;
 
-    int32_t   points_nbytes;
-    point3d_t points[points_nbytes];
+    int32_t   num;
+    float     x[num];
+    float     y[num];
+    float     z[num];
 }
