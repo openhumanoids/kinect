@@ -15,13 +15,6 @@ pods_install_pkg_config_file(kinect-utils
     VERSION 0.0.1)
 
 #add_executable(kinect-pc kinect-pc.cpp kinect-pointcloud-pub.cpp kinect-calib.c)
-
-pods_use_pkg_config_packages(kinect-pc
-    glib-2.0
-    bot2-vis
-    bot2-frames
-    lcm bot2-core lcmtypes_kinect )
-
-target_link_libraries(kinect-pc z m ${LCMTYPES_LIBS} ncurses boost_program_options boost_thread)
-
+#pods_use_pkg_config_packages(kinect-pc glib-2.0 bot2-vis bot2-frames lcm bot2-core lcmtypes_kinect )
+#target_link_libraries(kinect-pc z m ${LCMTYPES_LIBS} ncurses boost_program_options boost_thread)
 #pods_install_executables(kinect-pc)
