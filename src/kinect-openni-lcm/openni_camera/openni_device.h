@@ -197,14 +197,14 @@ protected:
   xn::Context& context_;
   /** \brief node object for current device */
   xn::NodeInfo device_node_info_;
-  
+ public:
   /** \brief Depth generator object. */
   xn::DepthGenerator depth_generator_;
   /** \brief Image generator object. */
   xn::ImageGenerator image_generator_;
   /** \brief IR generator object. */
   xn::IRGenerator ir_generator_;
-
+ protected:
   XnCallbackHandle depth_callback_handle_;
   XnCallbackHandle image_callback_handle_;
   XnCallbackHandle ir_callback_handle_;

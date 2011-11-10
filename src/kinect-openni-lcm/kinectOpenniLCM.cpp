@@ -109,6 +109,8 @@ void KinectOpenniLCM::SetupDevice(const std::string& deviceId)
   m_device->registerImageCallback(&KinectOpenniLCM::ImageCallback, *this);
   m_device->registerDepthCallback(&KinectOpenniLCM::DepthCallback, *this);
 
+  //m_device->depth_generator_.GetAlternativeViewPointCap().SetViewPoint(m_device->image_generator_);
+
   m_device->startImageStream ();
   m_device->startDepthStream ();
   startSynchronization ();
@@ -166,9 +168,8 @@ void KinectOpenniLCM::DepthCallback (boost::shared_ptr<openni_wrapper::DepthImag
   msg.depth.depth_data_nbytes = depth_image->getHeight() * depth_image->getWidth() * sizeof(short);
   msg.depth.uncompressed_size = msg.depth.depth_data_nbytes;
   msg.depth.depth_data = new uint8_t[msg.depth.depth_data_nbytes];
-  
-  
-  depth_image->fillDisparityImage(msg.depth.width, msg.depth.height, reinterpret_cast<unsigned short*>(msg.depth.depth_data), depth_image->getWidth() * sizeof(short));
+    
+  depth_image->fillDepthImageRaw(msg.depth.width, msg.depth.height, reinterpret_cast<unsigned short*>(msg.depth.depth_data), depth_image->getWidth() * sizeof(short));
   /*
   unsigned short* s = (unsigned short*)msg.depth.depth_data;
   unsigned int si = msg.depth.depth_data_nbytes / sizeof(short);
