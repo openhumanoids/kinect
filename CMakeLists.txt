@@ -13,6 +13,9 @@ lcmtypes_build()
 set(LIB_SUFFIX "" CACHE STRING "Suffix for libfreenect installation directory")
 add_subdirectory(libfreenect)
 
+set(IN_SUFFIX "" CACHE STRING "Suffix for openni installation directory")
+#add_subdirectory(openni)
+
 include_directories(${LCMTYPES_INCLUDE_DIRS}
     ${CMAKE_CURRENT_SOURCE_DIR}/libfreenect/include)
 
@@ -29,5 +32,4 @@ add_subdirectory(src/kinect-glview)
 # bot2-vis renderer and viewer
 add_subdirectory(src/kinect-renderer)
 
-#add_subdirectory(src/kinect-openni-lcm)
-
+add_subdirectory(src/kinect-openni-lcm)

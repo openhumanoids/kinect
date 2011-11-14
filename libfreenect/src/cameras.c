@@ -61,9 +61,9 @@ static int stream_process(freenect_context *ctx, packet_stream *strm, uint8_t *p
 		l_info = l_notice = l_warning = LL_SPEW;
 
 	if (hdr->magic[0] != 'R' || hdr->magic[1] != 'B') {
-		FN_LOG(l_notice, "[Stream %02x] Invalid magic %02x%02x\n",
-		       strm->flag, hdr->magic[0], hdr->magic[1]);
-		return 0;
+//		FN_LOG(l_notice, "[Stream %02x] Invalid magic %02x%02x\n",
+//		       strm->flag, hdr->magic[0], hdr->magic[1]);
+//		return 0;
 	}
 
 	FN_FLOOD("[Stream %02x] Packet with flag: %02x\n", strm->flag, hdr->flag);

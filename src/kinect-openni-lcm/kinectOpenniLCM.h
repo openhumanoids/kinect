@@ -4,7 +4,7 @@
 #include <glib.h>
 #include <lcmtypes/bot_core.h>
 #include <bot_core/bot_core.h>
-#include <lcmtypes/microstrain_ins_t.h>
+//#include <lcmtypes/microstrain_ins_t.h>
 #include <iostream>
 #include <iomanip>
 #include <vector>
