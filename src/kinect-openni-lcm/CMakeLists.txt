@@ -3,7 +3,7 @@ add_definitions(-Wall)
 set(CMAKE_CXX_FLAGS "-g")
 
 #include_directories(/opt/ros/electric/stacks/openni_kinect/openni_camera/include /usr/include/openni)
-include_directories(. openni_camera /home/sachih/software/envoy/software/build/include/ni)#/usr/include/ni)
+include_directories(. openni_camera /home/ross/research/envoy/software/build/include/ni)#/usr/include/ni)
 #link_directories(/opt/ros/electric/stacks/openni_kinect/openni_camera/lib)
 
 add_executable(kinect-openni-lcm 
@@ -23,7 +23,7 @@ add_executable(kinect-openni-lcm
   openni_camera/openni_depth_image.cpp
 )
 
-target_link_libraries(kinect-openni-lcm -L/home/sachih/software/envoy/software/build/lib/ OpenNI z m ${LCMTYPES_LIBS} ncurses boost_program_options boost_thread usb-1.0)
+target_link_libraries(kinect-openni-lcm -L/home/ross/research/envoy/software/build/lib/ OpenNI z m ${LCMTYPES_LIBS} ncurses boost_program_options boost_thread usb-1.0)
 
 pods_use_pkg_config_packages ( kinect-openni-lcm lcm bot2-core glib-2.0)
 
