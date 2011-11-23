@@ -548,8 +548,8 @@ static void usage(const char* progname)
       "\n"
       "Options:\n"
       "  -r RATE   Throttle publishing to RATE Hz.\n"
-      "  -d        Do not publish depth images\n"
-      "  -i        Do not publish RGB/infrared images\n"
+      "  -d        Depth mode\n"
+      "  -i        Image mode\n"
       "  -j        JPEG-compress RGB images\n"
       "  -q QUAL   JPEG compression quality (0-100, default 94)\n"
       "  -z        ZLib compress depth images\n"
@@ -558,6 +558,29 @@ static void usage(const char* progname)
       "  -n dev    Number of the device to open\n"
       "  -c name   LCM channel\n",
       g_path_get_basename(progname));
+
+  fprintf(stderr, "Image mode must be one of:\n"
+      "  VIDEO_RGB             = 0\n"
+      "  VIDEO_BAYER           = 1\n"
+      "  VIDEO_IR_8BIT         = 2\n"
+      "  VIDEO_IR_10BIT        = 3\n"
+      "  VIDEO_IR_10BIT_PACKED = 4\n"
+      "  VIDEO_YUV_RGB         = 5\n"
+      "  VIDEO_YUV_RAW         = 6\n"
+      "\n"
+      "  VIDEO_DISABLED        = -1\n"
+      );
+
+  fprintf(stderr, "Depth mode must be one of:\n"
+      "  DEPTH_11BIT        = 0\n"
+      "  DEPTH_10BIT        = 1\n"
+      "  DEPTH_11BIT_PACKED = 2\n"
+      "  DEPTH_10BIT_PACKED = 3\n"
+      "  DEPTH_REGISTERED   = 4\n"
+      "  DEPTH_MM           = 5\n"
+      "\n"
+      "  DEPTH_DISABLED         =-1\n"
+      );
   exit(1);
 }
 
@@ -598,19 +621,16 @@ int main(int argc, char **argv)
   int c;
   char *lcm_url = NULL;
   // command line options - to throtle - to ignore image publish  
-  while ((c = getopt(argc, argv, "hdir:jq:zl:n:c:")) >= 0) {
+  while ((c = getopt(argc, argv, "hd:i:r:jq:zl:n:c:")) >= 0) {
     switch (c) {
     case 'i': //ignore images
-      state->skip_img = 1;
-      dbg("Skipping RGB image publishing\n");
+      state->requested_image_format = atoi(optarg);
       break;
     case 'd':
-      state->skip_depth = 1;
-      dbg("Skipping depth publishing\n");
+      state->requested_depth_format = atoi(optarg);
       break;
     case 'j':
       state->requested_image_format = KINECT_IMAGE_MSG_T_VIDEO_RGB_JPEG;
-      printf("JPEG compressing RGB data\n");
       break;
     case 'q':
       state->jpeg_quality = atoi(optarg);
@@ -643,6 +663,71 @@ int main(int argc, char **argv)
       case '?':
       usage(argv[0]);
     }
+  }
+
+  const char * depthModeSting[] = {
+      "DEPTH_11BIT",
+      "DEPTH_10BIT",
+      "DEPTH_11BIT_PACKED",
+      "DEPTH_10BIT_PACKED",
+      "DEPTH_REGISTERED",
+      "DEPTH_MM",
+  };
+  switch (state->requested_depth_format) {
+  case KINECT_DEPTH_MSG_T_DEPTH_11BIT:
+    case KINECT_DEPTH_MSG_T_DEPTH_10BIT:
+    case KINECT_DEPTH_MSG_T_DEPTH_11BIT_PACKED:
+    case KINECT_DEPTH_MSG_T_DEPTH_10BIT_PACKED:
+    case KINECT_DEPTH_MSG_T_DEPTH_REGISTERED:
+    case KINECT_DEPTH_MSG_T_DEPTH_MM:
+    dbg("Depth Mode is %s\n", depthModeSting[state->requested_depth_format]);
+    break;
+  case KINECT_DEPTH_MSG_T_DEPTH_NONE:
+    case -1:
+    dbg("Depth is disabled");
+    state->requested_depth_format = KINECT_DEPTH_MSG_T_DEPTH_NONE;
+    state->skip_depth = 1;
+    break;
+  default:
+    dbg("Invalid depth format %d\n", state->requested_depth_format);
+    usage(argv[0]);
+    break;
+  }
+
+  const char * imageModeSting[] = {
+      "VIDEO_RGB",
+      "VIDEO_BAYER",
+      "VIDEO_IR_8BIT",
+      "VIDEO_IR_10BIT",
+      "VIDEO_IR_10BIT_PACKED",
+      "VIDEO_YUV_RGB",
+      "VIDEO_YUV_RAW",
+  };
+
+  switch (state->requested_image_format) {
+  case KINECT_IMAGE_MSG_T_VIDEO_RGB:
+    case KINECT_IMAGE_MSG_T_VIDEO_BAYER:
+    case KINECT_IMAGE_MSG_T_VIDEO_IR_8BIT:
+    case KINECT_IMAGE_MSG_T_VIDEO_IR_10BIT:
+    case KINECT_IMAGE_MSG_T_VIDEO_IR_10BIT_PACKED:
+    case KINECT_IMAGE_MSG_T_VIDEO_YUV_RGB:
+    case KINECT_IMAGE_MSG_T_VIDEO_YUV_RAW:
+    dbg("Image Mode is %s\n", imageModeSting[state->requested_image_format]);
+    break;
+
+  case KINECT_IMAGE_MSG_T_VIDEO_RGB_JPEG:
+    dbg("Jpeg Compressing RGB images\n");
+    break;
+  case KINECT_IMAGE_MSG_T_VIDEO_NONE:
+    case -1:
+    dbg("Image is disabled");
+    state->requested_image_format = KINECT_IMAGE_MSG_T_VIDEO_NONE;
+    state->skip_img = 1;
+    break;
+  default:
+    dbg("Invalid image format %d\n", state->requested_image_format);
+    usage(argv[0]);
+    break;
   }
 
   /*
