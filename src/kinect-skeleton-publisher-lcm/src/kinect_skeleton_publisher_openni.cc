@@ -16,7 +16,7 @@ static void usage(const char* progname)
 }
 
 void XN_CALLBACK_TYPE User_NewUser(xn::UserGenerator& generator, XnUserID nId, void* pCookie) {
-	printf("New User %d", nId);
+	printf("New User %d\n", nId);
 
 	if (g_bNeedPose)
 		g_UserGenerator.GetPoseDetectionCap().StartPoseDetection(g_strPose, nId);
@@ -25,20 +25,20 @@ void XN_CALLBACK_TYPE User_NewUser(xn::UserGenerator& generator, XnUserID nId, v
 }
 
 void XN_CALLBACK_TYPE User_LostUser(xn::UserGenerator& generator, XnUserID nId, void* pCookie) {
-	printf("Lost user %d", nId);
+	printf("Lost user %d\n", nId);
 }
 
 void XN_CALLBACK_TYPE UserCalibration_CalibrationStart(xn::SkeletonCapability& capability, XnUserID nId, void* pCookie) {
-	printf("Calibration started for user %d", nId);
+	printf("Calibration started for user %d\n", nId);
 }
 
 void XN_CALLBACK_TYPE UserCalibration_CalibrationEnd(xn::SkeletonCapability& capability, XnUserID nId, XnBool bSuccess, void* pCookie) {
 	if (bSuccess) {
-		printf("Calibration complete, start tracking user %d\n", nId);
+		printf("Calibration complete, start tracking user %d\n*****************************\n", nId);
 		g_UserGenerator.GetSkeletonCap().StartTracking(nId);
 	}
 	else {
-		printf("Calibration failed for user %d\n", nId);
+		printf("Calibration failed for user %d\n-----------------------------\n", nId);
 		if (g_bNeedPose)
 			g_UserGenerator.GetPoseDetectionCap().StartPoseDetection(g_strPose, nId);
 		else
