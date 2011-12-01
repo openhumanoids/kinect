@@ -22,6 +22,8 @@
 #include <lcmtypes/kinect_skeleton_msg_t.h>
 #include <lcmtypes/kinect_link_msg_t.h>
 
+#include "path_util.h"
+
 #define WIDTH 640
 #define HEIGHT 480
 #define PI 3.141592

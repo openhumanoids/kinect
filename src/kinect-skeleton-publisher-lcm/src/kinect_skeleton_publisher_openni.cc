@@ -105,21 +105,21 @@ int main(int argc, char** argv)
     int c;
     char *lcm_url = NULL;
     // command line options - to publish on a specific url  
-    // while ((c = getopt (argc, argv, "hdir:jq:zl:")) >= 0) {
-    //     switch (c) {
-    //     case 'l':
-    //         lcm_url = strdup(optarg);
-    //         printf("Using LCM URL \"%s\"\n", lcm_url);
-    //         break;
-    //     case 'd':
-    //         debug_mode=1;
-    //         printf("Debug mode\n");
-    //         break;
-    //     case 'h':
-    //     case '?':
-    //         usage(argv[0]);
-    //     }
-    // }
+    while ((c = getopt (argc, argv, "hdir:jq:zl:")) >= 0) {
+        switch (c) {
+        case 'l':
+            lcm_url = strdup(optarg);
+            printf("Using LCM URL \"%s\"\n", lcm_url);
+            break;
+        case 'd':
+            debug_mode=1;
+            printf("Debug mode\n");
+            break;
+        case 'h':
+        case '?':
+            usage(argv[0]);
+        }
+    }
 
     // LCM-related
     lcm_t* lcm = lcm_create(lcm_url);
@@ -130,15 +130,16 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    printf("Initialize from xml: %s\n", argv[1]);
-    char* config_file = g_strdup(argv[1]);
+
+    char config_file[2048];
+    sprintf(config_file, "%s/openni_tracker.xml", getConfigPath());
+    printf("Initialize from xml: %s\n", config_file);
     XnStatus nRetVal = g_Context.InitFromXmlFile(config_file);
     CHECK_RC(nRetVal, "InitFromXml");
 
     // Depth Generator
     nRetVal = g_Context.FindExistingNode(XN_NODE_TYPE_DEPTH, g_DepthGenerator);
     CHECK_RC(nRetVal, "Find depth generator");
-    printf("Depth generator\n");
 
     // User Generator
     nRetVal = g_Context.FindExistingNode(XN_NODE_TYPE_USER, g_UserGenerator);
@@ -177,7 +178,7 @@ int main(int argc, char** argv)
 
     nRetVal = g_Context.StartGeneratingAll();
     CHECK_RC(nRetVal, "StartGenerating");
-    printf("Start generating all\n");
+    printf("Skeleton tracker running..\nWaiting for calibration pose.. \n");
 
     while (true) { 
         g_Context.WaitAndUpdateAll();
