@@ -32,4 +32,7 @@ add_subdirectory(src/kinect-glview)
 # bot2-vis renderer and viewer
 add_subdirectory(src/kinect-renderer)
 
-#add_subdirectory(src/kinect-openni-lcm)
+add_subdirectory(src/kinect-openni-lcm)
+
+add_subdirectory(src/kinect-skeleton-publisher-lcm)
+add_subdirectory(src/kinect-skeleton-renderer)

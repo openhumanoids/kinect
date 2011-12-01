@@ -138,6 +138,7 @@ int main(int argc, char** argv)
     // Depth Generator
     nRetVal = g_Context.FindExistingNode(XN_NODE_TYPE_DEPTH, g_DepthGenerator);
     CHECK_RC(nRetVal, "Find depth generator");
+    printf("Depth generator\n");
 
     // User Generator
     nRetVal = g_Context.FindExistingNode(XN_NODE_TYPE_USER, g_UserGenerator);
@@ -176,7 +177,7 @@ int main(int argc, char** argv)
 
     nRetVal = g_Context.StartGeneratingAll();
     CHECK_RC(nRetVal, "StartGenerating");
-
+    printf("Start generating all\n");
 
     while (true) { 
         g_Context.WaitAndUpdateAll();
