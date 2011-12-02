@@ -18,6 +18,6 @@ add_executable(kinect-skeleton-publisher-lcm
 target_link_libraries(kinect-skeleton-publisher-lcm 
   /home/spillai/envoy_latest/software/drivers/kinect/openni/openni/build/openni/Platform/Linux-x86/Redist/Lib/libOpenNI.so z m ${LCMTYPES_LIBS} ncurses boost_program_options boost_thread usb-1.0)
 
-pods_use_pkg_config_packages ( kinect-skeleton-publisher-lcm lcm bot2-core glib-2.0 er-path-util)
+pods_use_pkg_config_packages ( kinect-skeleton-publisher-lcm lcm bot2-core glib-2.0 er-path-util lcmtypes_er-lcmtypes)
 
 pods_install_executables(kinect-skeleton-publisher-lcm)

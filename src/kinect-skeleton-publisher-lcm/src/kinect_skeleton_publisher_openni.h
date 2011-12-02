@@ -21,8 +21,10 @@
 #include <lcm/lcm.h>
 #include <lcmtypes/kinect_skeleton_msg_t.h>
 #include <lcmtypes/kinect_link_msg_t.h>
+#include <lcmtypes/erlcm_kinect_person_tracker_status_t.h>
 
 #include "path_util.h"
+#include <bot_core/timestamp.h>
 
 #define WIDTH 640
 #define HEIGHT 480

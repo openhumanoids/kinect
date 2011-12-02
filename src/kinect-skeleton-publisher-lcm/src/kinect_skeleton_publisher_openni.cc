@@ -3,7 +3,8 @@
 int debug_mode=0;
 XnBool g_bNeedPose   = FALSE;
 XnChar g_strPose[20] = "";
-    
+int tracker_status = ERLCM_KINECT_PERSON_TRACKER_STATUS_T_STATUS_IDLE;
+
 static void usage(const char* progname)
 {
   fprintf (stderr, "Usage: %s [options]\n"
@@ -26,6 +27,7 @@ void XN_CALLBACK_TYPE User_NewUser(xn::UserGenerator& generator, XnUserID nId, v
 
 void XN_CALLBACK_TYPE User_LostUser(xn::UserGenerator& generator, XnUserID nId, void* pCookie) {
 	printf("Lost user %d\n", nId);
+        tracker_status = ERLCM_KINECT_PERSON_TRACKER_STATUS_T_STATUS_IDLE;
 }
 
 void XN_CALLBACK_TYPE UserCalibration_CalibrationStart(xn::SkeletonCapability& capability, XnUserID nId, void* pCookie) {
@@ -36,9 +38,11 @@ void XN_CALLBACK_TYPE UserCalibration_CalibrationEnd(xn::SkeletonCapability& cap
 	if (bSuccess) {
 		printf("Calibration complete, start tracking user %d\n*****************************\n", nId);
 		g_UserGenerator.GetSkeletonCap().StartTracking(nId);
+                tracker_status = ERLCM_KINECT_PERSON_TRACKER_STATUS_T_STATUS_TRACKING;
 	}
 	else {
 		printf("Calibration failed for user %d\n-----------------------------\n", nId);
+                tracker_status = ERLCM_KINECT_PERSON_TRACKER_STATUS_T_STATUS_IDLE;
 		if (g_bNeedPose)
 			g_UserGenerator.GetPoseDetectionCap().StartPoseDetection(g_strPose, nId);
 		else
@@ -57,15 +61,17 @@ void publishTransforms(lcm_t* lcm, const char* msg_channel) {
     XnUInt16 users_count = 15;
     g_UserGenerator.GetUsers(users, users_count);
 
+    int64_t time_now = bot_timestamp_now();
     for (int i = 0; i < users_count; ++i) {
         XnUserID user = users[i];
         if (!g_UserGenerator.GetSkeletonCap().IsTracking(user))
             continue;
 
         kinect_skeleton_msg_t skeleton_msg;
+        erlcm_kinect_person_tracker_status_t person_tracker_status;
 
         const int num_links = NumLinks;
-        skeleton_msg.utime = 0;
+        skeleton_msg.utime = time_now;
         skeleton_msg.num_links = num_links;
         skeleton_msg.user_id = user;  // double
 
@@ -91,10 +97,30 @@ void publishTransforms(lcm_t* lcm, const char* msg_channel) {
             _links[i].dest.x = x, _links[i].dest.y = y, _links[i].dest.z = z;
 
         }
+        // Skeleton msg
         skeleton_msg.links = &_links[0];
         kinect_skeleton_msg_t_publish(lcm, msg_channel, &skeleton_msg);
-    }
 
+
+        XnSkeletonJointPosition joint_position;
+        g_UserGenerator.GetSkeletonCap().
+            GetSkeletonJointPosition(user, XN_SKEL_TORSO, joint_position);
+        XnPoint3D ni_p = joint_position.position;
+
+
+        double X = ni_p.X, Z = ni_p.Z;
+        double r = sqrt((X*X)+(Z*Z));
+        double theta = atan2(X, Z);
+        //printf("r,t: %f %f %f\n", r, theta);
+
+        // Person tracking status
+        person_tracker_status.utime = time_now;
+        person_tracker_status.status = tracker_status;
+        person_tracker_status.theta = theta;
+        person_tracker_status.r = r;
+        erlcm_kinect_person_tracker_status_t_publish(lcm, "KINECT_PERSON_STATUS_SERVO", &person_tracker_status);
+    }
+    
         return;
 }
 
