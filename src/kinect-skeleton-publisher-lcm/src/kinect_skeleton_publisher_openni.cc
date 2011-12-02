@@ -109,7 +109,7 @@ void publishTransforms(lcm_t* lcm, const char* msg_channel) {
 
 
         double X = ni_p.X, Z = ni_p.Z;
-        double r = sqrt((X*X)+(Z*Z));
+        double r = sqrt((X*X)+(Z*Z)) / 1000;
         double theta = atan2(X, Z);
         //printf("r,t: %f %f %f\n", r, theta);
 
