@@ -144,7 +144,7 @@ void KinectOpenniLCM::ImageCallback (boost::shared_ptr<openni_wrapper::Image> im
   if (new_data == false)
   {
     rgb_data = (uint8_t*)calloc(640*480*3, sizeof(uint8_t));
-    //image->fillRGB(image->getWidth(), image->getHeight(), reinterpret_cast<unsigned char*> (rgb_data), 640);
+    image->fillRGB(image->getWidth(), image->getHeight(), reinterpret_cast<unsigned char*> (rgb_data), 640*3);
     new_data = true;
   }
   m_lastImageTime = thisTime;
@@ -169,7 +169,7 @@ void KinectOpenniLCM::DepthCallback (boost::shared_ptr<openni_wrapper::DepthImag
     msg.image.width = 640;
     msg.image.height = 480;
     msg.image.image_data_nbytes = 640*480*3;
-    msg.image.image_data_format = KINECT_IMAGE_MSG_T_VIDEO_NONE;
+    msg.image.image_data_format = KINECT_IMAGE_MSG_T_VIDEO_RGB;
     msg.image.image_data = rgb_data;
   }
   else
@@ -181,7 +181,6 @@ void KinectOpenniLCM::DepthCallback (boost::shared_ptr<openni_wrapper::DepthImag
     msg.image.image_data_format = KINECT_IMAGE_MSG_T_VIDEO_NONE;
   }
 
-
   msg.depth.timestamp = thisTime;
   msg.depth.width = depth_image->getWidth();
   msg.depth.height = depth_image->getHeight();
@@ -189,15 +188,14 @@ void KinectOpenniLCM::DepthCallback (boost::shared_ptr<openni_wrapper::DepthImag
   msg.depth.depth_data_format = KINECT_DEPTH_MSG_T_DEPTH_11BIT;
   msg.depth.depth_data_nbytes = depth_image->getHeight() * depth_image->getWidth() * sizeof(short);
   msg.depth.uncompressed_size = msg.depth.depth_data_nbytes;
-  msg.depth.depth_data = new uint8_t[msg.depth.depth_data_nbytes];
+  msg.depth.depth_data = (uint8_t*)calloc(msg.depth.depth_data_nbytes, sizeof(uint8_t));
+//new uint8_t[msg.depth.depth_data_nbytes];
     
   depth_image->fillDepthImageRaw(msg.depth.width, msg.depth.height, reinterpret_cast<unsigned short*>(msg.depth.depth_data), depth_image->getWidth() * sizeof(short));
 
   kinect_frame_msg_t_publish(m_lcm, "KINECT_FRAME", &msg);
-
-  delete msg.depth.depth_data;
+  free(msg.depth.depth_data);
   if (new_data) 
     free(rgb_data);
-
   new_data = false;
 }

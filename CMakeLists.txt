@@ -13,9 +13,6 @@ lcmtypes_build()
 set(LIB_SUFFIX "" CACHE STRING "Suffix for libfreenect installation directory")
 add_subdirectory(libfreenect)
 
-set(IN_SUFFIX "" CACHE STRING "Suffix for openni installation directory")
-add_subdirectory(openni)
-
 include_directories(${LCMTYPES_INCLUDE_DIRS}
     ${CMAKE_CURRENT_SOURCE_DIR}/libfreenect/include)
 

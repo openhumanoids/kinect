@@ -26,6 +26,8 @@
 
 #include "jpeg-utils-ijg.h"
 
+#define DEPTH_VAL 8192
+
 int window;
 
 int width = 640;
@@ -123,7 +125,7 @@ void InitGL(int Width, int Height)
 	ReSizeGLScene(Width, Height);
 }
 
-uint16_t t_gamma[2048];
+uint16_t t_gamma[DEPTH_VAL];
 
 static void
 on_frame(const lcm_recv_buf_t* lcm, const char* channel, const kinect_frame_msg_t* msg, void* user)
@@ -165,8 +167,11 @@ on_frame(const lcm_recv_buf_t* lcm, const char* channel, const kinect_frame_msg_
       depth_img[i*3 + 1] = p;
       depth_img[i*3 + 2] = p;
 #else
-      if ( depth[i] >= 2048 ) {
-	continue;
+      if ( depth[i] >= DEPTH_VAL ) {
+continue;
+        depth_img[3*i+0] = 0;
+        depth_img[3*i+1] = 0;
+        depth_img[3*i+2] = 0;
       }
       int pval = t_gamma[depth[i]];
       int lb = pval & 0xff;
@@ -239,8 +244,8 @@ int main(int argc, char **argv)
   rgb = malloc(npixels*3);
   
   int i;
-  for (i=0; i<2048; i++) {
-    float v = i/2048.0;
+  for (i=0; i<DEPTH_VAL; i++) {
+    float v = i/(float)DEPTH_VAL;
     v = powf(v, 3)* 6;
     t_gamma[i] = v*6*256;
   }
