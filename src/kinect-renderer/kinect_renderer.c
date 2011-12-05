@@ -64,7 +64,7 @@ recompute_frame_data(KinectRenderer* self)
     }
 
     switch(self->msg->depth.depth_data_format) {
-        case KINECT_DEPTH_MSG_T_DEPTH_11BIT:
+    case KINECT_DEPTH_MSG_T_DEPTH_11BIT:
             if(G_BYTE_ORDER == G_LITTLE_ENDIAN) {
                 int16_t* rdd = (int16_t*) depth_data;
                 int i;
@@ -76,9 +76,21 @@ recompute_frame_data(KinectRenderer* self)
                 fprintf(stderr, "Big endian systems not supported\n");
             }
             break;
-        case KINECT_DEPTH_MSG_T_DEPTH_10BIT:
-            fprintf(stderr, "10-bit depth data not supported\n");
-            break;
+    case KINECT_DEPTH_MSG_T_DEPTH_MM:
+        if(G_BYTE_ORDER == G_LITTLE_ENDIAN) {
+            int16_t* rdd = (int16_t*) depth_data;
+            int i;
+            for(i=0; i<npixels; i++) {
+                int d = rdd[i];
+                self->disparity[i] = d;
+            }
+        } else {
+            fprintf(stderr, "Big endian systems not supported\n");
+        }
+        break;
+    case KINECT_DEPTH_MSG_T_DEPTH_10BIT:
+        fprintf(stderr, "10-bit depth data not supported\n");
+        break;
         default:
             break;
     }
@@ -174,7 +186,9 @@ static void _draw(BotViewer *viewer, BotRenderer *renderer)
       glMultMatrixd(kinect_to_local_m_opengl);
     }
 
-    //    float so = self->kcal->shift_offset; //unused
+    //fprintf(stderr,"Depth Type : %d => %d \n", self->msg->depth.depth_data_format, KINECT_DEPTH_MSG_T_DEPTH_11BIT);//KINECT_DEPTH_MSG_T_DEPTH_MM);
+    //float so = self->kcal->shift_offset; //unused
+    
     double depth_to_rgb_uvd[12];
     double depth_to_depth_xyz[16];
 
@@ -184,48 +198,79 @@ static void _draw(BotViewer *viewer, BotRenderer *renderer)
     double depth_to_depth_xyz_trans[16];
     _matrix_transpose_4x4d(depth_to_depth_xyz, depth_to_depth_xyz_trans);
 
-    glPushMatrix();
-    glMultMatrixd(depth_to_depth_xyz_trans);
+    if(self->msg->depth.depth_data_format == KINECT_DEPTH_MSG_T_DEPTH_11BIT ){
+        glPushMatrix();
+        glMultMatrixd(depth_to_depth_xyz_trans);
 
-    glEnable(GL_DEPTH_TEST);
-    glPointSize(2.0f);
-    glBegin(GL_POINTS);
-    glColor3f(0, 0, 0);
-    for(int u=0; u<self->width; u++) {
-        for(int v=0; v<self->height; v++) {
-            uint16_t disparity = self->disparity[v*self->width+u];
+        glEnable(GL_DEPTH_TEST);
+        glPointSize(2.0f);
+        glBegin(GL_POINTS);
+        glColor3f(0, 0, 0);
+        for(int u=0; u<self->width; u++) {
+            for(int v=0; v<self->height; v++) {
+                uint16_t disparity = self->disparity[v*self->width+u];
 
-            double uvd_depth[4] = { u, v, disparity, 1 };
-            double uvd_rgb[3];
-            _matrix_vector_multiply_3x4_4d(depth_to_rgb_uvd, uvd_depth, uvd_rgb);
+                double uvd_depth[4] = { u, v, disparity, 1 };
+                double uvd_rgb[3];
+                _matrix_vector_multiply_3x4_4d(depth_to_rgb_uvd, uvd_depth, uvd_rgb);
 
-            double uv_rect[2] = {
-                uvd_rgb[0] / uvd_rgb[2],
-                uvd_rgb[1] / uvd_rgb[2]
-            };
-            double uv_dist[2];
+                double uv_rect[2] = {
+                    uvd_rgb[0] / uvd_rgb[2],
+                    uvd_rgb[1] / uvd_rgb[2]
+                };
+                double uv_dist[2];
 
-            // compute distorted pixel coordinates
-            kinect_calib_distort_rgb_uv(self->kcal, uv_rect, uv_dist);
-            int u_rgb = uv_dist[0] + 0.5;
-            int v_rgb = uv_dist[1] + 0.5;
+                // compute distorted pixel coordinates
+                kinect_calib_distort_rgb_uv(self->kcal, uv_rect, uv_dist);
+                int u_rgb = uv_dist[0] + 0.5;
+                int v_rgb = uv_dist[1] + 0.5;
 
-            uint8_t r, g, b;
-            if(u_rgb >= self->width || u_rgb < 0 || v_rgb >= self->height || v_rgb < 0) {
-                r = g = b = 0;
-            } else {
-                r = self->rgb_data[v_rgb*self->width*3 + u_rgb*3 + 0];
-                g = self->rgb_data[v_rgb*self->width*3 + u_rgb*3 + 1];
-                b = self->rgb_data[v_rgb*self->width*3 + u_rgb*3 + 2];
+                uint8_t r, g, b;
+                if(u_rgb >= self->width || u_rgb < 0 || v_rgb >= self->height || v_rgb < 0) {
+                    r = g = b = 0;
+                } else {
+                    r = self->rgb_data[v_rgb*self->width*3 + u_rgb*3 + 0];
+                    g = self->rgb_data[v_rgb*self->width*3 + u_rgb*3 + 1];
+                    b = self->rgb_data[v_rgb*self->width*3 + u_rgb*3 + 2];
+                }
+
+                glColor3f(r / 255.0, g / 255.0, b / 255.0);
+
+                glVertex3f(u, v, disparity);
             }
-
-            glColor3f(r / 255.0, g / 255.0, b / 255.0);
-
-            glVertex3f(u, v, disparity);
         }
+        glEnd();
+        glPopMatrix();
     }
-    glEnd();
-    glPopMatrix();
+    else if(self->msg->depth.depth_data_format == KINECT_DEPTH_MSG_T_DEPTH_MM){
+        double fx_inv = 1/ self->kcal->intrinsics_depth.fx;
+        double cx = self->kcal->intrinsics_depth.cx;
+        double cy = self->kcal->intrinsics_depth.cy;
+        
+        glEnable(GL_DEPTH_TEST);
+        glPointSize(2.0f);
+        glBegin(GL_POINTS);
+        glColor3f(0, 0, 0);
+        for(int u=0; u<self->width; u++) {
+            for(int v=0; v<self->height; v++) {
+                uint16_t disparity = self->disparity[v*self->width+u];
+                float depth = disparity / 1000.0;
+
+                uint8_t r, g, b;
+                r = self->rgb_data[v*self->width*3 + u*3 + 0];
+                g = self->rgb_data[v*self->width*3 + u*3 + 1];
+                b = self->rgb_data[v*self->width*3 + u*3 + 2];
+
+                //glColor3f(r / 255.0, g / 255.0, b / 255.0);
+                glColor3f(r / 255.0, g / 255.0, b / 255.0);
+                float x = ( u * fx_inv - cx* fx_inv) * depth;
+                float y = ( v * fx_inv - cy* fx_inv) * depth;
+
+                glVertex3f(x,y, depth);
+            }
+        }
+        glEnd();
+    }
     /*
     glPointSize(2.1f);
     glBegin(GL_POINTS);

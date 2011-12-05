@@ -186,7 +186,7 @@ void KinectOpenniLCM::DepthCallback (boost::shared_ptr<openni_wrapper::DepthImag
   msg.depth.width = depth_image->getWidth();
   msg.depth.height = depth_image->getHeight();
   msg.depth.compression = KINECT_DEPTH_MSG_T_COMPRESSION_NONE;
-  msg.depth.depth_data_format = KINECT_DEPTH_MSG_T_DEPTH_11BIT;
+  msg.depth.depth_data_format = KINECT_DEPTH_MSG_T_DEPTH_MM;//KINECT_DEPTH_MSG_T_DEPTH_11BIT;
   msg.depth.depth_data_nbytes = depth_image->getHeight() * depth_image->getWidth() * sizeof(short);
   msg.depth.uncompressed_size = msg.depth.depth_data_nbytes;
   msg.depth.depth_data = (uint8_t*)calloc(msg.depth.depth_data_nbytes, sizeof(uint8_t));
