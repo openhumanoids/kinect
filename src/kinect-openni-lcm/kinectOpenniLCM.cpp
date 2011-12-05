@@ -7,6 +7,7 @@
 
 #include "openni_camera/openni_exception.h"
 #include "openni_camera/openni_depth_image.h"
+#include "openni_camera/openni_image.h"
 
 #include <lcmtypes/kinect_depth_msg_t.h>
 #include <lcmtypes/kinect_image_msg_t.h>
@@ -45,6 +46,8 @@ KinectOpenniLCM::KinectOpenniLCM(int argc, char **argv)
   m_lcm = bot_lcm_get_global(NULL);
 
   SetupDevice(deviceId);
+
+  new_data = false;
 }
 
 KinectOpenniLCM::~KinectOpenniLCM()
@@ -138,6 +141,12 @@ void KinectOpenniLCM::ImageCallback (boost::shared_ptr<openni_wrapper::Image> im
 
   //std::cout << "got an image     :" << thisTime << ", " << ((float)diffTime/1000000.0f) << ", " << ((float)diffFromDepthTime/1000000.0f) << std::endl;
 
+  if (new_data == false)
+  {
+    rgb_data = (uint8_t*)calloc(640*480*3, sizeof(uint8_t));
+    //image->fillRGB(image->getWidth(), image->getHeight(), reinterpret_cast<unsigned char*> (rgb_data), 640);
+    new_data = true;
+  }
   m_lastImageTime = thisTime;
 }
 
@@ -153,12 +162,25 @@ void KinectOpenniLCM::DepthCallback (boost::shared_ptr<openni_wrapper::DepthImag
 
   kinect_frame_msg_t msg;
   msg.timestamp = thisTime;
+//  new_data = false;
+  if (new_data)
+  {
+    msg.image.timestamp = thisTime;
+    msg.image.width = 640;
+    msg.image.height = 480;
+    msg.image.image_data_nbytes = 640*480*3;
+    msg.image.image_data_format = KINECT_IMAGE_MSG_T_VIDEO_NONE;
+    msg.image.image_data = rgb_data;
+  }
+  else
+  {
+    msg.image.timestamp = thisTime;
+    msg.image.width = 0;
+    msg.image.height = 0;
+    msg.image.image_data_nbytes = 0;
+    msg.image.image_data_format = KINECT_IMAGE_MSG_T_VIDEO_NONE;
+  }
 
-  msg.image.timestamp = thisTime;
-  msg.image.width = 0;
-  msg.image.height = 0;
-  msg.image.image_data_nbytes = 0;
-  msg.image.image_data_format = KINECT_IMAGE_MSG_T_VIDEO_NONE;
 
   msg.depth.timestamp = thisTime;
   msg.depth.width = depth_image->getWidth();
@@ -170,31 +192,12 @@ void KinectOpenniLCM::DepthCallback (boost::shared_ptr<openni_wrapper::DepthImag
   msg.depth.depth_data = new uint8_t[msg.depth.depth_data_nbytes];
     
   depth_image->fillDepthImageRaw(msg.depth.width, msg.depth.height, reinterpret_cast<unsigned short*>(msg.depth.depth_data), depth_image->getWidth() * sizeof(short));
-  /*
-  unsigned short* s = (unsigned short*)msg.depth.depth_data;
-  unsigned int si = msg.depth.depth_data_nbytes / sizeof(short);
-  for ( unsigned int i = 0; i < si; i++ ) {
-    std::cout << boost::format("%04X") % s[i] << ", ";
-  }
-  std::cout << std::endl;
-  exit(-1);
-  */
-  /*
-  void* src = (void*)depth_image->getDepthMetaData().Data();
-  unsigned long srcSize = depth_image->getDepthMetaData().DataSize();
-  void* dest = msg.depth.depth_data;
-  unsigned long destSize = msg.depth.depth_data_nbytes;
-  compress2((Bytef*)dest, &destSize, (const Bytef*)src, srcSize, Z_BEST_SPEED);
-  msg.depth.depth_data_nbytes = (int)destSize;
-  msg.depth.compression = KINECT_DEPTH_MSG_T_COMPRESSION_ZLIB;
-  */
 
-  /*
-  std::cout << "   w=" << msg.depth.width 
-	    << ", h="  << msg.depth.height 
-	    << ", s=" << msg.depth.depth_data_nbytes << std::endl;
-  */
   kinect_frame_msg_t_publish(m_lcm, "KINECT_FRAME", &msg);
 
   delete msg.depth.depth_data;
+  if (new_data) 
+    free(rgb_data);
+
+  new_data = false;
 }

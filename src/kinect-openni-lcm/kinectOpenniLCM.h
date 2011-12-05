@@ -36,6 +36,9 @@ class KinectOpenniLCM
   int64_t m_lastImageTime;
   int64_t m_lastDepthTime;
 
+  uint8_t* rgb_data;
+  bool new_data;
+
   boost::shared_ptr<openni_wrapper::OpenNIDevice> m_device;
 };
 
