@@ -112,7 +112,8 @@ void KinectOpenniLCM::SetupDevice(const std::string& deviceId)
   m_device->registerImageCallback(&KinectOpenniLCM::ImageCallback, *this);
   m_device->registerDepthCallback(&KinectOpenniLCM::DepthCallback, *this);
 
-  //m_device->depth_generator_.GetAlternativeViewPointCap().SetViewPoint(m_device->image_generator_);
+  //setting the view point to be the RGB camera 
+  m_device->depth_generator_.GetAlternativeViewPointCap().SetViewPoint(m_device->image_generator_);
 
   m_device->startImageStream ();
   m_device->startDepthStream ();
