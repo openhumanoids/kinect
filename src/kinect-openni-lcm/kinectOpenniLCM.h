@@ -71,84 +71,11 @@ class KinectOpenniLCM
   int64_t m_lastDepthTime;
 
   uint8_t* rgb_data;
+  uint8_t* depth_data;
   bool new_data;
-
-  typedef struct rate_t {
-  double target_hz;
-  double current_hz;
-  int64_t last_tick;
-  int64_t tick_count;
-  } rate_t;
-
-  void rate_destroy(rate_t* rate);
-
-  /**
-   * returns: 1 if an image should be published.  0 if not
-   */
-  int rate_check(rate_t* rate);
-
-  typedef struct _state_t {
-  GThread* openni_thread;
-  volatile int die;
-
-  int8_t requested_image_format;
-  int8_t current_image_format;
-
-  int8_t requested_depth_format;
-  int8_t current_depth_format;
-
-  int8_t current_resolution;
-
-  uint8_t* image_data;
-
-  uint8_t* image_buf;
-  int image_buf_size;
-
-  uint8_t* debayer_buf;
-  int debayer_buf_size;
-
-  uint16_t* depth_unpack_buf;
-  int depth_unpack_buf_size;
-
-  uint8_t* depth_compress_buf;
-  int debayer_buf_stride;
-  int depth_compress_buf_size;
-
-  double accel_mks[3];
-  double tilt_radians;
-
-
-  kinect_frame_msg_t msg;
-  char* msg_channel;
-
-  int got_img;
-  int got_depth;
-
-  int skip_img;
-  int skip_depth;
-  int throttle; //1 in data skip will be published
-  timestamp_sync_state_t* clocksync;
-
-  rate_t* capture_rate;
-  rate_t* report_rate;
-
-  uint8_t* jpeg_buf;
-  int jpeg_buf_size;
-
-  int jpeg_quality;
-
-  int use_zlib;
-
-  lcm_t* lcm;
-
-  int64_t last_timestamp;
-  int64_t last_depth_timestamp;
-  int64_t last_img_timestamp;
-} state_t;
 
   boost::shared_ptr<openni_wrapper::OpenNIDevice> m_device;
 
-  state_t *state;
 };
 
 #endif
