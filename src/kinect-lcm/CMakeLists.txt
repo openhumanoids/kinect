@@ -1,3 +1,8 @@
+include(../../cmake/sse.cmake)
+if (NOT SSE3_FOUND)
+	message(STATUS, "sse3 not found, not building kinect-lcm")
+	return()
+endif()
 add_definitions(-Wall -std=gnu99 -msse2 -msse3 -DHAVE_INTEL)
 
 add_executable(kinect-lcm main.c 
