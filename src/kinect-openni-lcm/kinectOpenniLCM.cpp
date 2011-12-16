@@ -149,8 +149,6 @@ void KinectOpenniLCM::ImageCallback (boost::shared_ptr<openni_wrapper::Image> im
 void KinectOpenniLCM::DepthCallback (boost::shared_ptr<openni_wrapper::DepthImage> depth_image, void* cookie)
 {
   int64_t thisTime = bot_timestamp_now();
-  int64_t diffTime = thisTime - m_lastDepthTime;
-  int64_t diffFromImageTime = thisTime - m_lastImageTime;
 
   //std::cout << "got a depth image:" << thisTime << ", " << ((float)diffTime/1000000.0f) << ", " << ((float)diffFromImageTime/1000000.0f) << std::endl;
 
@@ -172,7 +170,7 @@ void KinectOpenniLCM::DepthCallback (boost::shared_ptr<openni_wrapper::DepthImag
   msg.depth.depth_data_format = KINECT_DEPTH_MSG_T_DEPTH_MM;//KINECT_DEPTH_MSG_T_DEPTH_11BIT;
   msg.depth.depth_data_nbytes = depth_image->getHeight() * depth_image->getWidth() * sizeof(short);
   msg.depth.uncompressed_size = msg.depth.depth_data_nbytes;
-  msg.depth.depth_data = (uint8_t*)calloc(msg.depth.depth_data_nbytes, sizeof(uint8_t));
+
 //new uint8_t[msg.depth.depth_data_nbytes];
   //memset(msg.depth.depth_data, 128, msg.depth.depth_data_nbytes/2);    
   //memset(&msg.depth.depth_data[msg.depth.depth_data_nbytes/2], 255, msg.depth.depth_data_nbytes/2);    
