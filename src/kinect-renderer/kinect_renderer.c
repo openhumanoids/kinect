@@ -12,6 +12,9 @@
 
 #include "jpeg-utils-ijg.h"
 
+#define PARAM_HISTORY_FREQUENCY "Scan Hist. Freq."
+#define MAX_REFERSH_RATE_USEC 30000 //not sure whether we really need this part
+
 typedef struct _KinectRenderer {
     BotRenderer renderer;
     BotGtkParamWidget *pw;
@@ -21,6 +24,8 @@ typedef struct _KinectRenderer {
     char * kinect_frame;
 
     kinect_frame_msg_t* msg;
+
+    int64_t last_kinect_data_utime;
 
     int width;
     int height;
@@ -102,23 +107,38 @@ on_kinect_frame (const lcm_recv_buf_t *rbuf, const char *channel,
 {
     KinectRenderer *self = (KinectRenderer*) user_data;
 
-    if(self->msg)
-        kinect_frame_msg_t_destroy(self->msg);
-    self->msg = kinect_frame_msg_t_copy(msg);
+    static int64_t last_redraw_utime = 0;
+    int64_t now = bot_timestamp_now(); 
 
-    // TODO check width, height
+    double hist_spc = bot_gtk_param_widget_get_double (self->pw, PARAM_HISTORY_FREQUENCY);
 
-    if(msg->image.image_data_format == KINECT_IMAGE_MSG_T_VIDEO_RGB) {
-        memcpy(self->rgb_data, msg->image.image_data, 
-                self->width * self->height * 3);
-    } else if(msg->image.image_data_format == KINECT_IMAGE_MSG_T_VIDEO_RGB_JPEG) {
-        jpegijg_decompress_8u_rgb(msg->image.image_data, msg->image.image_data_nbytes,
-                self->rgb_data, self->width, self->height, self->width * 3);
+    if (abs (msg->timestamp - self->last_kinect_data_utime) > (int64_t)(1E6/hist_spc)) {
+        self->last_kinect_data_utime = msg->timestamp;
+
+        if(self->msg)
+            kinect_frame_msg_t_destroy(self->msg);
+        self->msg = kinect_frame_msg_t_copy(msg);
+
+        // TODO check width, height
+
+        if(msg->image.image_data_format == KINECT_IMAGE_MSG_T_VIDEO_RGB) {
+            memcpy(self->rgb_data, msg->image.image_data, 
+                   self->width * self->height * 3);
+        } else if(msg->image.image_data_format == KINECT_IMAGE_MSG_T_VIDEO_RGB_JPEG) {
+            jpegijg_decompress_8u_rgb(msg->image.image_data, msg->image.image_data_nbytes,
+                                      self->rgb_data, self->width, self->height, self->width * 3);
+        }
+
+        self->need_to_recompute_frame_data = 1;
+
+        if ((now - last_redraw_utime) > MAX_REFERSH_RATE_USEC) {
+            bot_viewer_request_redraw( self->viewer );
+            last_redraw_utime = now;
+        }
+
+        bot_viewer_request_redraw(self->viewer);
     }
-
-    self->need_to_recompute_frame_data = 1;
-
-    bot_viewer_request_redraw(self->viewer);
+    //else - skip 
 }
 
 static void on_param_widget_changed (BotGtkParamWidget *pw, const char *name, void *user)
@@ -356,6 +376,10 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, int priority, lcm_t* lcm, BotFr
     self->lcm = lcm;
     self->viewer = viewer;
     self->pw = BOT_GTK_PARAM_WIDGET(bot_gtk_param_widget_new());
+
+    bot_gtk_param_widget_add_double(self->pw, PARAM_HISTORY_FREQUENCY, 
+                                    BOT_GTK_PARAM_WIDGET_SLIDER, 
+                                    0.1, 30, 0.1, 30.0);
 
     self->uncompress_buffer = NULL;
     self->uncompress_buffer_size = 0;
