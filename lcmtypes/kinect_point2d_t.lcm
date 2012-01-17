@@ -1,0 +1,6 @@
+package kinect;
+
+struct point2d_t {
+    double u;
+    double v;
+}
