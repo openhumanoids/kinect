@@ -288,6 +288,10 @@ static void _draw(BotViewer *viewer, BotRenderer *renderer)
 
                 glVertex3f(x,y, depth);
             }
+	  
+	  //float disparity =  1000 * 0.07214 * 576.09757860 / self->disparity[v*self->width+u] / 8;
+	  //glColor3f(255.0 / 255.0, 0 / 255.0, 0 / 255.0);
+	  //glVertex3f(u, v, disparity);
         }
         glEnd();
     }
@@ -364,8 +368,8 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, int priority, lcm_t* lcm, BotFr
     self->kcal->intrinsics_rgb.k1 = 0;
     self->kcal->intrinsics_rgb.k2 = 0;
 
-    self->kcal->shift_offset = 1093.4753;
-    self->kcal->projector_depth_baseline = 0.07214;;
+    self->kcal->shift_offset = 1093.4753;// / 4;
+    self->kcal->projector_depth_baseline = 0.07214;// * 4;
 
     double R[9] = { 0.999999, -0.000796, 0.001256, 0.000739, 0.998970, 0.045368, -0.001291, -0.045367, 0.998970 };
     double T[3] = { -0.015756, -0.000923, 0.002316 };

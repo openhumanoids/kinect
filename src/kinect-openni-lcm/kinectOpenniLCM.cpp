@@ -328,8 +328,6 @@ void KinectOpenniLCM::ImageCallback (boost::shared_ptr<openni_wrapper::Image> im
   int64_t diffTime = thisTime - m_lastImageTime;
   int64_t diffFromDepthTime = thisTime - m_lastDepthTime;
 
-  rate_check(capture_rate);
-
 
   //std::cout << "got an image     :" << thisTime << ", " << ((float)diffTime/1000000.0f) << ", " << ((float)diffFromDepthTime/1000000.0f) << std::endl;
 
@@ -339,6 +337,8 @@ void KinectOpenniLCM::ImageCallback (boost::shared_ptr<openni_wrapper::Image> im
 
 void KinectOpenniLCM::DepthCallback (boost::shared_ptr<openni_wrapper::DepthImage> depth_image, void* cookie)
 {
+  if (rate_check(capture_rate) == 0) return;
+
   int64_t thisTime = bot_timestamp_now();
 
   //std::cout << "got a depth image:" << thisTime << ", " << ((float)diffTime/1000000.0f) << ", " << ((float)diffFromImageTime/1000000.0f) << std::endl;

@@ -168,10 +168,10 @@ on_frame(const lcm_recv_buf_t* lcm, const char* channel, const kinect_frame_msg_
       depth_img[i*3 + 2] = p;
 #else
       if ( depth[i] >= DEPTH_VAL ) {
-continue;
         depth_img[3*i+0] = 0;
         depth_img[3*i+1] = 0;
         depth_img[3*i+2] = 0;
+	continue;
       }
       int pval = t_gamma[depth[i]];
       int lb = pval & 0xff;
