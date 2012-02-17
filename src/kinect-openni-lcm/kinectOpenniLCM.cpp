@@ -18,16 +18,85 @@ namespace po = boost::program_options;
 
 KinectOpenniLCM::KinectOpenniLCM(int argc, char **argv)
 {
+    jpeg_quality = 94;
 
-  std::string deviceId;
+    double target_rate = INFINITY;
+    int c;
+    char *lcm_url = NULL;
+    int8_t current_image_format;
 
+    int8_t requested_depth_format;
+    int8_t current_depth_format;
+
+    int jpeg_quality;
+    int user_device_number = 0;
+
+    int use_zlib;
+    int throttle;
+    char* msg_channel;
+
+    
+
+    // command line options - to throtle - to ignore image publish  
+    while ((c = getopt(argc, argv, "hd:i:r:jq:zl:n:c:")) >= 0) {
+        switch (c) {
+        case 'i': //ignore images
+            requested_image_format = atoi(optarg);
+            break;
+        case 'd':
+            requested_depth_format = atoi(optarg);
+            break;
+        case 'j':
+            requested_image_format = KINECT_IMAGE_MSG_T_VIDEO_RGB_JPEG;
+            printf("Setting JPEG mode\n");
+            break;
+        case 'q':
+            jpeg_quality = atoi(optarg);
+            if (jpeg_quality < 0 || jpeg_quality > 100)
+                usage(argv[0]);
+            break;
+        case 'n':
+            user_device_number = atoi(optarg);
+            printf("attempting to open device %i\n", user_device_number);
+            break;
+        case 'z':
+            use_zlib = 1;
+            printf("ZLib compressing depth data\n");
+            break;
+        case 'r':
+            target_rate = strtod(optarg, NULL);
+            printf("Target Rate is : %.3f Hz\n", target_rate);
+            throttle = 1;
+            break;
+        case 'l':
+            lcm_url = strdup(optarg);
+            printf("Using LCM URL \"%s\"\n", lcm_url);
+            break;
+        case 'c':
+            g_free(msg_channel);
+            msg_channel = g_strdup(optarg);
+            printf("Output on LCM channel: %s\n", msg_channel);
+            break;
+        case 'h':
+        case '?':
+            usage(argv[0]);
+        }
+    }
+
+
+  std::string deviceId = "#1";
+  
+  /*throttle = 0;
   // Declare the supported options.
   po::options_description desc("Allowed options");
   desc.add_options()
-    ("help", "produce help message")
-    ( "id", 
-      po::value<std::string>(&deviceId)->default_value(std::string("#1")), 
-      "index (e.g., #1) or serial of kinect" )
+      ("help", "produce help message")
+      ( "id", 
+        po::value<std::string>(&deviceId)->default_value(std::string("#1")), 
+        "index (e.g., #1) or serial of kinect" )
+      ( "rate", 
+        po::value<double>(&target_rate)->default_value(30.0), 
+        "desired publish rate of device" )      
     ;
   
   po::variables_map vm;
@@ -39,14 +108,72 @@ KinectOpenniLCM::KinectOpenniLCM(int argc, char **argv)
     exit(1);
   }
 
+  if (vm.count("rate")) {
+      std::cout << "Target Rate : " << target_rate << " Hz" << std::endl;
+      }*/
+
   m_lcm = bot_lcm_get_global(NULL);
 
   depth_data = (uint8_t*)calloc(640*480*2, sizeof(uint8_t));
-  rgb_data = (uint8_t*)calloc(640*480*3, sizeof(uint8_t));
+  rgb_data = (uint8_t*)calloc(640*480*3, sizeof(uint8_t));                                              
+  
+  image_buf_size = 640 * 480 * 10;
+  if (0 != posix_memalign((void**) &image_buf, 16, image_buf_size)) {
+      fprintf(stderr, "Error allocating image buffer\n");
+      //return 1;
+  }
+
+  report_rate = rate_new(0.5);
+  // throttling
+  capture_rate = rate_new(target_rate);
+
+  pthread_create(&work_thread, NULL, status_thread, this);
 
   SetupDevice(deviceId);
 
   new_data = false;
+}
+
+void KinectOpenniLCM::usage(const char* progname)
+{
+    fprintf(stderr, "Usage: %s [options]\n"
+            "\n"
+            "Options:\n"
+            "  -r RATE   Throttle publishing to RATE Hz.\n"
+            "  -d        Depth mode\n"
+            "  -i        Image mode\n"
+            "  -j        JPEG-compress RGB images\n"
+            "  -q QUAL   JPEG compression quality (0-100, default 94)\n"
+            "  -z        ZLib compress depth images\n"
+            "  -l URL    Specify LCM URL\n"
+            "  -h        This help message\n"
+            "  -n dev    Number of the device to open\n"
+            "  -c name   LCM channel\n",
+            g_path_get_basename(progname));
+
+    fprintf(stderr, "Image mode must be one of:\n"
+            "  VIDEO_RGB             = 0\n"
+            "  VIDEO_BAYER           = 1\n"
+            "  VIDEO_IR_8BIT         = 2\n"
+            "  VIDEO_IR_10BIT        = 3\n"
+            "  VIDEO_IR_10BIT_PACKED = 4\n"
+            "  VIDEO_YUV_RGB         = 5\n"
+            "  VIDEO_YUV_RAW         = 6\n"
+            "\n"
+            "  VIDEO_DISABLED        = -1\n"
+            );
+
+    fprintf(stderr, "Depth mode must be one of:\n"
+            "  DEPTH_11BIT        = 0\n"
+            "  DEPTH_10BIT        = 1\n"
+            "  DEPTH_11BIT_PACKED = 2\n"
+            "  DEPTH_10BIT_PACKED = 3\n"
+            "  DEPTH_REGISTERED   = 4\n"
+            "  DEPTH_MM           = 5\n"
+            "\n"
+            "  DEPTH_DISABLED         =-1\n"
+            );
+    exit(1);
 }
 
 KinectOpenniLCM::~KinectOpenniLCM()
@@ -55,6 +182,67 @@ KinectOpenniLCM::~KinectOpenniLCM()
     m_device->stopDepthStream ();
     m_device->stopImageStream ();
   }
+  
+  if(capture_rate)
+      rate_destroy(capture_rate);
+}
+
+KinectOpenniLCM::rate_t* KinectOpenniLCM::rate_new(double target_hz)
+{
+    rate_t* rt = (rate_t *) calloc(1, sizeof(rate_t));
+    rt->target_hz = target_hz;
+    rt->tick_count = 0;
+    return rt;
+}
+
+//pthread - for publishing sensor status 
+void * KinectOpenniLCM::status_thread(void *data)
+{
+
+    KinectOpenniLCM *self = (KinectOpenniLCM *)data;
+
+    while(1){        
+        if(self->report_rate){
+            kinect_sensor_status_t msg;
+            msg.utime = bot_timestamp_now();
+            msg.sensor_name = "kinect"; //maybe use some indexing - to make it unique
+            msg.rate = self->capture_rate->current_hz;
+            
+            msg.type = KINECT_SENSOR_STATUS_T_KINECT; //prob need to identify this more - if there are multiple kinects
+
+            kinect_sensor_status_t_publish(self->m_lcm, "SENSOR_STATUS_KINECT", &msg);
+            }
+        sleep(1);
+    }
+    
+    return 0;
+}
+
+void KinectOpenniLCM::rate_destroy(rate_t* rate)
+{
+    free(rate);
+}
+
+int KinectOpenniLCM::rate_check(rate_t* rate)
+{
+    // check the current time
+    int64_t c_utime = bot_timestamp_now();
+
+    // compute the framerate if we were to publish an image
+    int64_t dt = c_utime - rate->last_tick;
+
+    double p_framerate = alpha * (1.0 * 1e6 / dt) + (1 - alpha) * rate->current_hz;
+    if (p_framerate > rate->target_hz) {
+        // if the potential framerate is too high, don't publish, and return 0
+        return 0;
+    }
+    else {
+        // otherwise, update current_hz with a exponential moving average, and return 1
+        rate->current_hz = p_framerate;
+        rate->last_tick = c_utime;
+        rate->tick_count++;
+        return 1;
+    }
 }
 
 void KinectOpenniLCM::SetupDevice(const std::string& deviceId)
@@ -140,6 +328,9 @@ void KinectOpenniLCM::ImageCallback (boost::shared_ptr<openni_wrapper::Image> im
   int64_t diffTime = thisTime - m_lastImageTime;
   int64_t diffFromDepthTime = thisTime - m_lastDepthTime;
 
+  rate_check(capture_rate);
+
+
   //std::cout << "got an image     :" << thisTime << ", " << ((float)diffTime/1000000.0f) << ", " << ((float)diffFromDepthTime/1000000.0f) << std::endl;
 
   image->fillRGB(image->getWidth(), image->getHeight(), reinterpret_cast<unsigned char*> (rgb_data), 640*3);
@@ -159,9 +350,30 @@ void KinectOpenniLCM::DepthCallback (boost::shared_ptr<openni_wrapper::DepthImag
   msg.image.timestamp = m_lastImageTime;
   msg.image.width = 640;
   msg.image.height = 480;
-  msg.image.image_data_nbytes = 640*480*3;
-  msg.image.image_data_format = KINECT_IMAGE_MSG_T_VIDEO_RGB;
-  msg.image.image_data = rgb_data;
+  msg.image.image_data_nbytes = 640*480*3;  
+ 
+  if(requested_image_format == KINECT_IMAGE_MSG_T_VIDEO_RGB_JPEG){
+      int compressed_size =  640*480*3;//image_buf_size;
+
+#if 1//USE_JPEG_UTILS_POD
+      int compression_status = jpeg_compress_8u_rgb (rgb_data, 640, 480, 640*3,
+                                                     image_buf, &compressed_size, jpeg_quality);
+#else
+      int compression_status = jpegijg_compress_8u_rgb(rgb_data, 640, 480, 640 * 3,
+                                                       image_buf, &compressed_size, jpeg_quality);
+#endif
+      if (0 != compression_status) {
+          fprintf(stderr, "JPEG compression failed...\n");
+      }
+      msg.image.image_data_nbytes = compressed_size;
+      msg.image.image_data_format = KINECT_IMAGE_MSG_T_VIDEO_RGB_JPEG;
+      msg.image.image_data = image_buf; //rgb_data;
+  }
+  else{
+      msg.image.image_data_format = KINECT_IMAGE_MSG_T_VIDEO_RGB;
+      msg.image.image_data = rgb_data;
+      msg.image.image_data_nbytes = 640*480*3;
+  }
 
   msg.depth.timestamp = thisTime;
   msg.depth.width = depth_image->getWidth();

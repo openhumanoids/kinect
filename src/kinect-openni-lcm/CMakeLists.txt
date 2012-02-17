@@ -32,6 +32,7 @@ add_executable(kinect-openni-lcm
 #  /home/spillai/envoy_latest/software/drivers/kinect/openni/ps_engine/build/ps_engine/Platform/Linux-x86/Bin/Release
 target_link_libraries(kinect-openni-lcm 
   OpenNI
+  jpeg-utils
   #../../openni/openni/build/openni/Platform/Linux-x86/Redist/Lib/libOpenNI.so 
   z m ${LCMTYPES_LIBS} ncurses boost_program_options boost_thread usb-1.0)
 

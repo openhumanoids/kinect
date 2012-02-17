@@ -29,16 +29,19 @@
 #include <zlib.h>
 #include <glib.h>
 #include <lcm/lcm.h>
+#include <pthread.h>
 
-#if USE_JPEG_UTILS_POD
+//#if USE_JPEG_UTILS_POD
 #include <jpeg-utils/jpeg-utils.h>
-#else
-#include "jpeg-utils-ijg.h"
-#endif
+//#else
+//#include "jpeg-utils-ijg.h"
+//#endif
 
 #include <lcmtypes/kinect_depth_msg_t.h>
 #include <lcmtypes/kinect_image_msg_t.h>
 #include <lcmtypes/kinect_frame_msg_t.h>
+
+#include <lcmtypes/kinect_sensor_status_t.h>
 
 #include "timestamp.h"
 #include "pixels.h"
@@ -57,6 +60,13 @@ class KinectOpenniLCM
   virtual ~KinectOpenniLCM();
 
  private:
+  typedef struct _rate_t {
+      double target_hz;
+      double current_hz;
+      int64_t last_tick;
+      int64_t tick_count;
+  } rate_t;
+
   void SetupDevice(const std::string& deviceId);
   void ImageCallback (boost::shared_ptr<openni_wrapper::Image> image, void* cookie);
   void DepthCallback (boost::shared_ptr<openni_wrapper::DepthImage> depth_image, void* cookie);
@@ -64,8 +74,21 @@ class KinectOpenniLCM
   void stopSynchronization ();
   void usage(const char*);
 
- private:
+  rate_t* rate_new(double target_hz);
 
+  void rate_destroy(rate_t* rate);
+
+  /**
+   * returns: 1 if an image should be published.  0 if not
+   */
+  int rate_check(rate_t* rate);
+
+  static void *status_thread(void *data);
+
+ private:
+  uint8_t* image_buf;
+  int image_buf_size;
+  int jpeg_quality;
   lcm_t* m_lcm;
   int64_t m_lastImageTime;
   int64_t m_lastDepthTime;
@@ -73,6 +96,15 @@ class KinectOpenniLCM
   uint8_t* rgb_data;
   uint8_t* depth_data;
   bool new_data;
+
+  double target_rate; 
+  int throttle;
+
+  pthread_t  work_thread;
+
+  rate_t* capture_rate;
+  rate_t* report_rate;  
+  int8_t  requested_image_format;
 
   boost::shared_ptr<openni_wrapper::OpenNIDevice> m_device;
 

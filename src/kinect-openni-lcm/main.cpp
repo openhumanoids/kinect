@@ -34,7 +34,7 @@ app_destroy(app_t *self)
 
 int main(int argc, char **argv)
 {
-    setlinebuf(stdout);
+    setlinebuf(stdout);    
 
     g_thread_init(NULL);
 
