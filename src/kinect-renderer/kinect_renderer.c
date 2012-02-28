@@ -336,7 +336,7 @@ static void _free(BotRenderer *renderer)
 }
 
 void 
-kinect_add_renderer_to_viewer(BotViewer* viewer, int priority, lcm_t* lcm, BotFrames * frames, const char * kinect_frame)
+kinect_add_renderer_to_viewer(BotViewer* viewer, int priority, lcm_t* lcm, BotFrames * frames, const char * kinect_frame, BotParam *param)
 {
     KinectRenderer *self = (KinectRenderer*) calloc(1, sizeof(KinectRenderer));
 
@@ -355,24 +355,26 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, int priority, lcm_t* lcm, BotFr
     BotRenderer *renderer = &self->renderer;
 
     self->kcal = kinect_calib_new();
-    self->kcal->width = 640;
-    self->kcal->height = 480;
+    self->kcal->width = bot_param_get_int_or_fail(param, "calibration.kinect.width");
+    self->kcal->height = bot_param_get_int_or_fail(param, "calibration.kinect.height");;
 
-    self->kcal->intrinsics_depth.fx = 576.09757860;
-    self->kcal->intrinsics_depth.cx = 321.06398107;
-    self->kcal->intrinsics_depth.cy = 242.97676897;
+    self->kcal->intrinsics_depth.fx = bot_param_get_double_or_fail(param, "calibration.kinect.depth_fx");;
+    self->kcal->intrinsics_depth.cx = bot_param_get_double_or_fail(param, "calibration.kinect.depth_cx");;
+    self->kcal->intrinsics_depth.cy = bot_param_get_double_or_fail(param, "calibration.kinect.depth_cy");;
 
-    self->kcal->intrinsics_rgb.fx = 528.49404721;
-    self->kcal->intrinsics_rgb.cx = 319.50000000;
-    self->kcal->intrinsics_rgb.cy = 239.50000000;
-    self->kcal->intrinsics_rgb.k1 = 0;
-    self->kcal->intrinsics_rgb.k2 = 0;
+    self->kcal->intrinsics_rgb.fx = bot_param_get_double_or_fail(param, "calibration.kinect.rgb_fx");;
+    self->kcal->intrinsics_rgb.cx = bot_param_get_double_or_fail(param, "calibration.kinect.rgb_cx");;
+    self->kcal->intrinsics_rgb.cy = bot_param_get_double_or_fail(param, "calibration.kinect.rgb_cy");;
+    self->kcal->intrinsics_rgb.k1 = bot_param_get_double_or_fail(param, "calibration.kinect.rgb_k1");;
+    self->kcal->intrinsics_rgb.k2 = bot_param_get_double_or_fail(param, "calibration.kinect.rgb_k2");;
 
-    self->kcal->shift_offset = 1093.4753;// / 4;
-    self->kcal->projector_depth_baseline = 0.07214;// * 4;
+    self->kcal->shift_offset = bot_param_get_double_or_fail(param, "calibration.kinect.shift_offset");
+    self->kcal->projector_depth_baseline = bot_param_get_double_or_fail(param, "calibration.kinect.porjector_depth_baseline");
 
-    double R[9] = { 0.999999, -0.000796, 0.001256, 0.000739, 0.998970, 0.045368, -0.001291, -0.045367, 0.998970 };
-    double T[3] = { -0.015756, -0.000923, 0.002316 };
+    double R[9];
+    bot_param_get_double_array_or_fail(param, "calibration.kinect.R", R, 9);
+    double T[3];
+    bot_param_get_double_array_or_fail(param, "calibration.kinect.T", T, 3);
 
     memcpy(self->kcal->depth_to_rgb_rot, R, 9*sizeof(double));
     memcpy(self->kcal->depth_to_rgb_translation, T, 3*sizeof(double));

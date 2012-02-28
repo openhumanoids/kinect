@@ -4,6 +4,9 @@
 
 #include <bot_core/bot_core.h>
 #include <bot_vis/bot_vis.h>
+#include <er_common/path_util.h>
+#include <bot_param/param_client.h>
+#include <bot_param/param_util.h>
 
 #include "kinect_renderer.h"
 
@@ -30,9 +33,23 @@ int main(int argc, char *argv[])
     app.lcm = lcm_create(NULL);
     bot_glib_mainloop_attach_lcm(app.lcm);
 
+    // setup calibration params
+    BotParam * param;
+    if (!(param = bot_param_get_global(app.lcm, 0))) {
+        fprintf(stderr,"No server found : Reading from file\n");
+        char config_path[2048];
+        sprintf(config_path, "%s/wheelchair.cfg", getConfigPath());
+        param = bot_param_new_from_file(config_path);
+
+        if(!param){
+            fprintf (stderr, "Unable to get BotParam instance\n");
+            return 0;
+        }
+    }
+
     // setup renderers
     bot_viewer_add_stock_renderer(viewer, BOT_VIEWER_STOCK_RENDERER_GRID, 1);
-    kinect_add_renderer_to_viewer(viewer, 0,app.lcm,NULL,NULL);
+    kinect_add_renderer_to_viewer(viewer, 0,app.lcm,NULL,NULL, param);
 
     // load saved preferences
     char *fname = g_build_filename(g_get_user_config_dir(), ".kinect-viewerrc", NULL);

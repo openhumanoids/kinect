@@ -16,12 +16,15 @@
 
 #include <bot_vis/bot_vis.h>
 #include <bot_frames/bot_frames.h>
+#include <bot_param/param_client.h>
+#include <bot_param/param_util.h>
+
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void kinect_add_renderer_to_viewer(BotViewer* viewer, int priority,lcm_t* lcm, BotFrames * frames, const char * kinect_frame);
+void kinect_add_renderer_to_viewer(BotViewer* viewer, int priority,lcm_t* lcm, BotFrames * frames, const char * kinect_frame, BotParam *param);
 
 /**
  * @}
