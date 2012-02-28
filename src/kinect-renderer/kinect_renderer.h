@@ -17,7 +17,6 @@
 #include <bot_vis/bot_vis.h>
 #include <bot_frames/bot_frames.h>
 #include <bot_param/param_client.h>
-#include <bot_param/param_util.h>
 
 
 #ifdef __cplusplus

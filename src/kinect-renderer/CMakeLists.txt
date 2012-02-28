@@ -46,7 +46,6 @@ pods_use_pkg_config_packages(kinect-viewer
     bot2-vis
     bot2-frames
     bot2-param-client 
-    er-path-util
     lcm
     kinect-utils
     kinect-renderer)

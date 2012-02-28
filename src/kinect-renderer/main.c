@@ -4,7 +4,7 @@
 
 #include <bot_core/bot_core.h>
 #include <bot_vis/bot_vis.h>
-#include <er_common/path_util.h>
+//#include <er_common/path_util.h>
 #include <bot_param/param_client.h>
 #include <bot_param/param_util.h>
 
@@ -37,14 +37,15 @@ int main(int argc, char *argv[])
     BotParam * param;
     if (!(param = bot_param_get_global(app.lcm, 0))) {
         fprintf(stderr,"No server found : Reading from file\n");
-        char config_path[2048];
-        sprintf(config_path, "%s/wheelchair.cfg", getConfigPath());
-        param = bot_param_new_from_file(config_path);
+//        char config_path[2048];
+//        sprintf(config_path, "%s/wheelchair.cfg", getConfigPath());
+//        param = bot_param_new_from_file(config_path);
+        
 
-        if(!param){
-            fprintf (stderr, "Unable to get BotParam instance\n");
-            return 0;
-        }
+//        if(!param){
+//            fprintf (stderr, "Unable to get BotParam instance\n");
+//            return 0;
+//:w        }
     }
 
     // setup renderers

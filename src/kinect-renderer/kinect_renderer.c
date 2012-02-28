@@ -335,6 +335,38 @@ static void _free(BotRenderer *renderer)
     free(self);
 }
 
+inline void fillDefault(KinectRenderer *self, double* R, double* T)
+{
+    self->kcal->width = 640;
+    self->kcal->height = 480;
+    self->kcal->intrinsics_depth.fx = 576.09757860;
+    self->kcal->intrinsics_depth.cx = 321.06398107;
+    self->kcal->intrinsics_depth.cy = 242.97676897;
+
+    self->kcal->intrinsics_rgb.fx = 528.49404721;
+    self->kcal->intrinsics_rgb.cx = 319.50000000;
+    self->kcal->intrinsics_rgb.cy = 239.50000000;
+    self->kcal->intrinsics_rgb.k1 = 0;
+    self->kcal->intrinsics_rgb.k2 = 0;
+
+    self->kcal->shift_offset = 1093.4753;
+    self->kcal->projector_depth_baseline = 0.07214;
+
+    R[0] = 0.999999;
+    R[1] = -0.000796;
+    R[2] = 0.001256;
+    R[3] = 0.000739;
+    R[4] = 0.998970;
+    R[5] = 0.045368;
+    R[6] = -0.001291;
+    R[7] = -0.045367;
+    R[8] = 0.998970;
+
+    T[0] = -0.015756;
+    T[1] = -0.000923;
+    T[2] = 0.002316;
+}
+
 void 
 kinect_add_renderer_to_viewer(BotViewer* viewer, int priority, lcm_t* lcm, BotFrames * frames, const char * kinect_frame, BotParam *param)
 {
@@ -354,27 +386,77 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, int priority, lcm_t* lcm, BotFr
 
     BotRenderer *renderer = &self->renderer;
 
-    self->kcal = kinect_calib_new();
-    self->kcal->width = bot_param_get_int_or_fail(param, "calibration.kinect.width");
-    self->kcal->height = bot_param_get_int_or_fail(param, "calibration.kinect.height");;
-
-    self->kcal->intrinsics_depth.fx = bot_param_get_double_or_fail(param, "calibration.kinect.depth_fx");;
-    self->kcal->intrinsics_depth.cx = bot_param_get_double_or_fail(param, "calibration.kinect.depth_cx");;
-    self->kcal->intrinsics_depth.cy = bot_param_get_double_or_fail(param, "calibration.kinect.depth_cy");;
-
-    self->kcal->intrinsics_rgb.fx = bot_param_get_double_or_fail(param, "calibration.kinect.rgb_fx");;
-    self->kcal->intrinsics_rgb.cx = bot_param_get_double_or_fail(param, "calibration.kinect.rgb_cx");;
-    self->kcal->intrinsics_rgb.cy = bot_param_get_double_or_fail(param, "calibration.kinect.rgb_cy");;
-    self->kcal->intrinsics_rgb.k1 = bot_param_get_double_or_fail(param, "calibration.kinect.rgb_k1");;
-    self->kcal->intrinsics_rgb.k2 = bot_param_get_double_or_fail(param, "calibration.kinect.rgb_k2");;
-
-    self->kcal->shift_offset = bot_param_get_double_or_fail(param, "calibration.kinect.shift_offset");
-    self->kcal->projector_depth_baseline = bot_param_get_double_or_fail(param, "calibration.kinect.projector_depth_baseline");
-
     double R[9];
-    bot_param_get_double_array_or_fail(param, "calibration.kinect.R", R, 9);
     double T[3];
-    bot_param_get_double_array_or_fail(param, "calibration.kinect.T", T, 3);
+    self->kcal = kinect_calib_new();
+
+    if (param)
+    {
+        char **rgbd_names = bot_param_get_subkeys (param, "rgbd_cameras");
+        if (rgbd_names) {
+            if (rgbd_names[0])
+            {
+                int checkInt = 0;
+                int useDefault = 0;
+                self->kcal->width = bot_param_get_int_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.width");
+                self->kcal->height = bot_param_get_int_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.height");;
+
+                if (self->kcal->width == 0 || self->kcal->height == 0)
+                    useDefault = 1;
+
+                self->kcal->intrinsics_depth.fx = bot_param_get_double_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.depth_fx");;
+                self->kcal->intrinsics_depth.cx = bot_param_get_double_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.depth_cx");;
+                self->kcal->intrinsics_depth.cy = bot_param_get_double_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.depth_cy");;
+
+                if (self->kcal->intrinsics_depth.cx == 0
+                    || self->kcal->intrinsics_depth.cy == 0
+                    || self->kcal->intrinsics_depth.fx == 0)
+                    useDefault == 1;
+
+                self->kcal->intrinsics_rgb.fx = bot_param_get_double_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.rgb_fx");;
+                self->kcal->intrinsics_rgb.cx = bot_param_get_double_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.rgb_cx");;
+                self->kcal->intrinsics_rgb.cy = bot_param_get_double_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.rgb_cy");;
+                self->kcal->intrinsics_rgb.k1 = bot_param_get_double_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.rgb_k1");;
+                self->kcal->intrinsics_rgb.k2 = bot_param_get_double_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.rgb_k2");;
+
+                 if (self->kcal->intrinsics_rgb.cx == 0 
+                    || self->kcal->intrinsics_rgb.cy == 0
+                    || self->kcal->intrinsics_rgb.fx == 0   
+                    || self->kcal->intrinsics_rgb.k1 == 0
+                    || self->kcal->intrinsics_rgb.k2 == 0)
+                    useDefault == 1;
+
+                self->kcal->shift_offset = bot_param_get_double_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.shift_offset");
+                self->kcal->projector_depth_baseline = bot_param_get_double_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.projector_depth_baseline");
+
+                if (self->kcal->shift_offset == 0 
+                    || self->kcal->projector_depth_baseline == 0)
+                    useDefault == 1;
+
+                bot_param_get_double_array_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.R", R, 9);
+                bot_param_get_double_array_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.T", T, 3);
+
+                if (useDefault) {
+                    fprintf(stderr, "Error reading specific KINECT info - using default values\n");
+                    fillDefault(self, R, T);
+                }
+            }
+            else {
+                fprintf(stderr, "Error reading kinect info - using default values\n");
+                fillDefault(self, R, T);
+            }
+        }
+        else {
+            fprintf(stderr, "Error reading from param server - using default values\n");
+            fillDefault(self, R, T);
+        }
+    }
+    else {
+        fprintf(stderr, "Error: Param server is null - using default values\n");
+        fillDefault(self, R, T);
+    }
+    
+            
 
     memcpy(self->kcal->depth_to_rgb_rot, R, 9*sizeof(double));
     memcpy(self->kcal->depth_to_rgb_translation, T, 3*sizeof(double));
