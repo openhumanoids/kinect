@@ -369,7 +369,7 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, int priority, lcm_t* lcm, BotFr
     self->kcal->intrinsics_rgb.k2 = bot_param_get_double_or_fail(param, "calibration.kinect.rgb_k2");;
 
     self->kcal->shift_offset = bot_param_get_double_or_fail(param, "calibration.kinect.shift_offset");
-    self->kcal->projector_depth_baseline = bot_param_get_double_or_fail(param, "calibration.kinect.porjector_depth_baseline");
+    self->kcal->projector_depth_baseline = bot_param_get_double_or_fail(param, "calibration.kinect.projector_depth_baseline");
 
     double R[9];
     bot_param_get_double_array_or_fail(param, "calibration.kinect.R", R, 9);
