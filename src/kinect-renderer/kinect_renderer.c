@@ -368,7 +368,8 @@ inline void fillDefault(KinectRenderer *self, double* R, double* T)
 }
 
 void 
-kinect_add_renderer_to_viewer(BotViewer* viewer, int priority, lcm_t* lcm, BotFrames * frames, const char * kinect_frame, BotParam *param)
+kinect_add_renderer_to_viewer(BotViewer* viewer, int priority, lcm_t* lcm, BotFrames * frames, 
+                              const char * kinect_frame, BotParam *param)
 {
     KinectRenderer *self = (KinectRenderer*) calloc(1, sizeof(KinectRenderer));
 
@@ -390,12 +391,10 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, int priority, lcm_t* lcm, BotFr
     double T[3];
     self->kcal = kinect_calib_new();
 
-    if (param)
-    {
+    if (param) {
         char **rgbd_names = bot_param_get_subkeys (param, "rgbd_cameras");
         if (rgbd_names) {
-            if (rgbd_names[0])
-            {
+            if (rgbd_names[0]) {
                 int checkInt = 0;
                 int useDefault = 0;
                 self->kcal->width = bot_param_get_int_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.width");
@@ -411,7 +410,7 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, int priority, lcm_t* lcm, BotFr
                 if (self->kcal->intrinsics_depth.cx == 0
                     || self->kcal->intrinsics_depth.cy == 0
                     || self->kcal->intrinsics_depth.fx == 0)
-                    useDefault == 1;
+                    useDefault = 1;
 
                 self->kcal->intrinsics_rgb.fx = bot_param_get_double_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.rgb_fx");;
                 self->kcal->intrinsics_rgb.cx = bot_param_get_double_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.rgb_cx");;
@@ -424,14 +423,14 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, int priority, lcm_t* lcm, BotFr
                     || self->kcal->intrinsics_rgb.fx == 0   
                     || self->kcal->intrinsics_rgb.k1 == 0
                     || self->kcal->intrinsics_rgb.k2 == 0)
-                    useDefault == 1;
+                    useDefault = 1;
 
                 self->kcal->shift_offset = bot_param_get_double_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.shift_offset");
                 self->kcal->projector_depth_baseline = bot_param_get_double_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.projector_depth_baseline");
 
                 if (self->kcal->shift_offset == 0 
                     || self->kcal->projector_depth_baseline == 0)
-                    useDefault == 1;
+                    useDefault = 1;
 
                 bot_param_get_double_array_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.R", R, 9);
                 bot_param_get_double_array_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.T", T, 3);
@@ -442,7 +441,7 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, int priority, lcm_t* lcm, BotFr
                 }
             }
             else {
-                fprintf(stderr, "Error reading kinect info - using default values\n");
+                fprintf(stderr, "Error reading kinect info (rgbd_cameras key not available) - using default values\n");
                 fillDefault(self, R, T);
             }
         }
@@ -450,6 +449,7 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, int priority, lcm_t* lcm, BotFr
             fprintf(stderr, "Error reading from param server - using default values\n");
             fillDefault(self, R, T);
         }
+        g_strfreev (rgbd_names);
     }
     else {
         fprintf(stderr, "Error: Param server is null - using default values\n");

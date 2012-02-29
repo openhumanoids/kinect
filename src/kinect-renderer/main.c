@@ -35,18 +35,6 @@ int main(int argc, char *argv[])
 
     // setup calibration params
     BotParam * param;
-    if (!(param = bot_param_get_global(app.lcm, 0))) {
-        fprintf(stderr,"No server found : Reading from file\n");
-//        char config_path[2048];
-//        sprintf(config_path, "%s/wheelchair.cfg", getConfigPath());
-//        param = bot_param_new_from_file(config_path);
-        
-
-//        if(!param){
-//            fprintf (stderr, "Unable to get BotParam instance\n");
-//            return 0;
-//:w        }
-    }
 
     // setup renderers
     bot_viewer_add_stock_renderer(viewer, BOT_VIEWER_STOCK_RENDERER_GRID, 1);
