@@ -22,6 +22,7 @@ target_link_libraries(xtion-lcm
     jpeg
     z
     m
+    boost_program_options-mt
     ${LCMTYPES_LIBS})
 
 find_package(PCL 1.5 REQUIRED)
