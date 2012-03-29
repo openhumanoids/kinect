@@ -19,6 +19,7 @@ include_directories(${LCMTYPES_INCLUDE_DIRS}
 
 # build LCM kinect utility
 add_subdirectory(src/kinect-lcm)
+#add_subdirectory(src/xtion-lcm)
 
 # kinect utility library
 add_subdirectory(src/kinect-utils)
@@ -29,4 +30,4 @@ add_subdirectory(src/kinect-glview)
 # bot2-vis renderer and viewer
 add_subdirectory(src/kinect-renderer)
 
-add_subdirectory(src/kinect-openni-lcm)
+#add_subdirectory(src/kinect-openni-lcm)
