@@ -39,3 +39,10 @@ pods_use_pkg_config_packages(test-sender
 
 pods_install_executables(kinect-lcm)
 pods_install_executables(test-sender)
+
+# create a pkg-config file for the library, to make it for other software to
+# use it.
+pods_install_pkg_config_file(kinect
+    LIBS -lkinect
+    REQUIRES ${REQUIRED_LIBS}
+    VERSION 0.0.1)

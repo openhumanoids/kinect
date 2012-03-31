@@ -372,6 +372,8 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, int priority, lcm_t* lcm, BotFr
                               const char * kinect_frame, BotParam *param)
 {
     KinectRenderer *self = (KinectRenderer*) calloc(1, sizeof(KinectRenderer));
+    char* channel_name;
+    char prefix[256], temp[512];
 
     self->need_to_recompute_frame_data = 0;
     self->width = 640;
@@ -397,26 +399,38 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, int priority, lcm_t* lcm, BotFr
             if (rgbd_names[0]) {
                 int checkInt = 0;
                 int useDefault = 0;
-                self->kcal->width = bot_param_get_int_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.width");
-                self->kcal->height = bot_param_get_int_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.height");;
+		sprintf(prefix, "rgbd_cameras.%s.", self->kinect_frame);
+
+		strcpy(temp, prefix);
+                self->kcal->width = bot_param_get_int_or_fail(param, strcat(temp, "intrinsic_cal.width") );
+		strcpy(temp, prefix);
+                self->kcal->height = bot_param_get_int_or_fail(param, strcat(temp, "intrinsic_cal.height") );
 
                 if (self->kcal->width == 0 || self->kcal->height == 0)
                     useDefault = 1;
 
-                self->kcal->intrinsics_depth.fx = bot_param_get_double_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.depth_fx");;
-                self->kcal->intrinsics_depth.cx = bot_param_get_double_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.depth_cx");;
-                self->kcal->intrinsics_depth.cy = bot_param_get_double_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.depth_cy");;
+		strcpy(temp, prefix);
+                self->kcal->intrinsics_depth.fx = bot_param_get_double_or_fail(param, strcat(temp, "intrinsic_cal.depth_fx"));
+		strcpy(temp, prefix);
+                self->kcal->intrinsics_depth.cx = bot_param_get_double_or_fail(param, strcat(temp, "intrinsic_cal.depth_cx"));
+		strcpy(temp, prefix);
+                self->kcal->intrinsics_depth.cy = bot_param_get_double_or_fail(param, strcat(temp, "intrinsic_cal.depth_cy"));
 
                 if (self->kcal->intrinsics_depth.cx == 0
                     || self->kcal->intrinsics_depth.cy == 0
                     || self->kcal->intrinsics_depth.fx == 0)
                     useDefault = 1;
 
-                self->kcal->intrinsics_rgb.fx = bot_param_get_double_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.rgb_fx");;
-                self->kcal->intrinsics_rgb.cx = bot_param_get_double_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.rgb_cx");;
-                self->kcal->intrinsics_rgb.cy = bot_param_get_double_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.rgb_cy");;
-                self->kcal->intrinsics_rgb.k1 = bot_param_get_double_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.rgb_k1");;
-                self->kcal->intrinsics_rgb.k2 = bot_param_get_double_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.rgb_k2");;
+		strcpy(temp, prefix);
+                self->kcal->intrinsics_rgb.fx = bot_param_get_double_or_fail(param, strcat(temp, "intrinsic_cal.rgb_fx"));
+		strcpy(temp, prefix);
+                self->kcal->intrinsics_rgb.cx = bot_param_get_double_or_fail(param, strcat(temp, "intrinsic_cal.rgb_cx"));
+		strcpy(temp, prefix);
+                self->kcal->intrinsics_rgb.cy = bot_param_get_double_or_fail(param, strcat(temp, "intrinsic_cal.rgb_cy"));
+		strcpy(temp, prefix);
+                self->kcal->intrinsics_rgb.k1 = bot_param_get_double_or_fail(param, strcat(temp, "intrinsic_cal.rgb_k1"));
+		strcpy(temp, prefix);
+                self->kcal->intrinsics_rgb.k2 = bot_param_get_double_or_fail(param, strcat(temp, "intrinsic_cal.rgb_k2"));
 
                  if (self->kcal->intrinsics_rgb.cx == 0 
                     || self->kcal->intrinsics_rgb.cy == 0
@@ -425,15 +439,19 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, int priority, lcm_t* lcm, BotFr
                     || self->kcal->intrinsics_rgb.k2 == 0)
                     useDefault = 1;
 
-                self->kcal->shift_offset = bot_param_get_double_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.shift_offset");
-                self->kcal->projector_depth_baseline = bot_param_get_double_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.projector_depth_baseline");
+		 strcpy(temp, prefix);
+		 self->kcal->shift_offset = bot_param_get_double_or_fail(param, strcat(temp, "intrinsic_cal.shift_offset"));
+		 strcpy(temp, prefix);
+		 self->kcal->projector_depth_baseline = bot_param_get_double_or_fail(param, strcat(temp, "intrinsic_cal.projector_depth_baseline"));
 
                 if (self->kcal->shift_offset == 0 
                     || self->kcal->projector_depth_baseline == 0)
                     useDefault = 1;
 
-                bot_param_get_double_array_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.R", R, 9);
-                bot_param_get_double_array_or_fail(param, "rgbd_cameras.KINECT.intrinsic_cal.T", T, 3);
+		strcpy(temp, prefix);
+                bot_param_get_double_array_or_fail(param, strcat(temp, "intrinsic_cal.R"), R, 9);
+		strcpy(temp, prefix);
+		bot_param_get_double_array_or_fail(param, strcat(temp, "intrinsic_cal.T"), T, 3);
 
                 if (useDefault) {
                     fprintf(stderr, "Error reading specific KINECT info - using default values\n");
@@ -482,7 +500,13 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, int priority, lcm_t* lcm, BotFr
     g_signal_connect (G_OBJECT (self->pw), "changed",
                       G_CALLBACK (on_param_widget_changed), self);
 
-    kinect_frame_msg_t_subscribe(self->lcm, "KINECT_FRAME", on_kinect_frame, self);
+    sprintf(prefix, "rgbd_cameras.%s.lcm_channel", self->kinect_frame);
+    if ( bot_param_get_str(param, prefix, &channel_name) == -1 ) {
+      kinect_frame_msg_t_subscribe(self->lcm, "KINECT_FRAME", on_kinect_frame, self);
+    } else {
+      kinect_frame_msg_t_subscribe(self->lcm, channel_name, on_kinect_frame, self);
+      free(channel_name);
+    }
 
     bot_viewer_add_renderer(viewer, renderer, priority);
 }
