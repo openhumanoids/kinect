@@ -492,7 +492,7 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, int priority, lcm_t* lcm, BotFr
 
     renderer->draw = _draw;
     renderer->destroy = _free;
-    renderer->name = "Kinect";
+    renderer->name = self->kinect_frame;
     renderer->widget = GTK_WIDGET(self->pw);
     renderer->enabled = 1;
     renderer->user = self;
