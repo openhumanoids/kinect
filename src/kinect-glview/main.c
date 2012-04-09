@@ -11,6 +11,7 @@
 #include <lcmtypes/kinect_depth_msg_t.h>
 #include <lcmtypes/kinect_frame_msg_t.h>
 #include <pthread.h>
+#include <png.h>
 
 #if defined(__APPLE__)
 #include <GLUT/glut.h>
@@ -42,7 +43,12 @@ GLuint gl_rgb_tex;
 
 lcm_t* lcm = NULL;
 
+bool doOutput = false;
+char outputPath[1024];
+
 pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
+
+int pngFileIndex = 0;
 
 void DrawGLScene()
 {
@@ -130,6 +136,8 @@ uint16_t t_gamma[DEPTH_VAL];
 static void
 on_frame(const lcm_recv_buf_t* lcm, const char* channel, const kinect_frame_msg_t* msg, void* user)
 {
+  int i;
+  png_bytep* row_pointers;
   // TODO check image width, height
 
   if(msg->image.image_data_nbytes) {
@@ -214,6 +222,24 @@ on_frame(const lcm_recv_buf_t* lcm, const char* channel, const kinect_frame_msg_
       }
 #endif
     }
+
+    row_pointers = (png_bytep*) malloc(sizeof(png_bytep) * height);
+    for ( i = 0; i < height; i++ ) {
+      row_pointers[i] = (png_bytep) malloc(3*width*2);
+      memcpy(row_pointers[i] + 0*3*width,       rgb + i*3*width, width*3);
+      memcpy(row_pointers[i] + 1*3*width, depth_img + i*3*width, width*3);
+      //row_pointers[i] = depth_img + (i*3*width);
+    }
+    if ( doOutput ) {
+      char filename[1024];
+      sprintf(filename, "%s/img%08i.png", outputPath, pngFileIndex++);
+      write_png_file(filename, width*2, height, row_pointers);
+      for ( i = 0; i < height; i++ ) {
+	free(row_pointers[i]);
+      }
+      free(row_pointers);
+    }
+
     pthread_mutex_unlock( &mutex1 );
     //exit(-1);
   }
@@ -227,9 +253,82 @@ static void usage(const char* progname)
                    "  -l URL      Specify LCM URL\n"
 	           "  -c channel  Subscribe channel name\n"
                    "  -h          This help message\n", 
+        	   "  -o path     Save frames to PNG\n",
                    g_path_get_basename(progname));
   exit(1);
 }
+
+void abort_(const char * s, ...)
+{
+        va_list args;
+        va_start(args, s);
+        vfprintf(stderr, s, args);
+        fprintf(stderr, "\n");
+        va_end(args);
+        abort();
+}
+
+void write_png_file(char* file_name, int width, int height, png_bytep* row_pointers )
+{
+  png_byte color_type = PNG_COLOR_TYPE_RGB;
+  png_byte bit_depth = 8;
+  int y;
+
+  /* create file */
+  FILE *fp = fopen(file_name, "wb");
+  if (!fp)
+    abort_("[write_png_file] File %s could not be opened for writing", file_name);
+
+
+  /* initialize stuff */
+  png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+
+  if (!png_ptr)
+    abort_("[write_png_file] png_create_write_struct failed");
+
+  png_infop info_ptr = png_create_info_struct(png_ptr);
+  if (!info_ptr)
+    abort_("[write_png_file] png_create_info_struct failed");
+  
+  if (setjmp(png_jmpbuf(png_ptr)))
+    abort_("[write_png_file] Error during init_io");
+
+  png_init_io(png_ptr, fp);
+
+
+  /* write header */
+  if (setjmp(png_jmpbuf(png_ptr)))
+    abort_("[write_png_file] Error during writing header");
+  
+  png_set_IHDR(png_ptr, info_ptr, width, height,
+	       bit_depth, color_type, PNG_INTERLACE_NONE,
+	       PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
+  
+  png_write_info(png_ptr, info_ptr);
+  
+  
+  /* write bytes */
+  if (setjmp(png_jmpbuf(png_ptr)))
+    abort_("[write_png_file] Error during writing bytes");
+  
+  png_write_image(png_ptr, row_pointers);
+  
+  
+  /* end write */
+  if (setjmp(png_jmpbuf(png_ptr)))
+    abort_("[write_png_file] Error during end of write");
+  
+  png_write_end(png_ptr, NULL);
+  
+  /*
+  for (y=0; y<height; y++)
+    free(row_pointers[y]);
+  free(row_pointers);
+*/
+  
+  fclose(fp);
+}
+
 
 int main(int argc, char **argv)
 {
@@ -280,6 +379,11 @@ int main(int argc, char **argv)
       strcpy(channelName, optarg);
       printf("Listening to channel %s\n", channelName);
       break;    
+    case 'o' :
+      strcpy(outputPath, optarg);
+      printf("Capturing PNGs to %s\n", outputPath);
+      doOutput = true;
+      break;
     case 'h':
     case '?':
       usage(argv[0]);

@@ -12,6 +12,7 @@ target_link_libraries(kinect-glview
     ${LCMTYPES_LIBS} 
     z 
     jpeg
+    png
     )
 
 if(APPLE)
