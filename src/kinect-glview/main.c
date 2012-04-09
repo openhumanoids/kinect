@@ -369,7 +369,7 @@ int main(int argc, char **argv)
 
   int c;
   char *lcm_url = NULL;
-  while ((c = getopt (argc, argv, "hl:c:")) >= 0) {
+  while ((c = getopt (argc, argv, "hl:c:o:")) >= 0) {
     switch (c) {
     case 'l':
       lcm_url = strdup(optarg);
