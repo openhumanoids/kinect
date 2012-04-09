@@ -43,7 +43,7 @@ GLuint gl_rgb_tex;
 
 lcm_t* lcm = NULL;
 
-bool doOutput = false;
+int doOutput = 0;
 char outputPath[1024];
 
 pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
@@ -382,7 +382,7 @@ int main(int argc, char **argv)
     case 'o' :
       strcpy(outputPath, optarg);
       printf("Capturing PNGs to %s\n", outputPath);
-      doOutput = true;
+      doOutput = 1;
       break;
     case 'h':
     case '?':
