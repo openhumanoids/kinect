@@ -373,6 +373,7 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, int priority, lcm_t* lcm, BotFr
 {
     KinectRenderer *self = (KinectRenderer*) calloc(1, sizeof(KinectRenderer));
     char* channel_name;
+    char default_channel_name[] = "KINECT_FRAME";
     char prefix[256], temp[512];
 
     self->need_to_recompute_frame_data = 0;
@@ -382,7 +383,7 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, int priority, lcm_t* lcm, BotFr
     self->rgb_data = (uint8_t*) malloc(self->width * self->height * 3);
 
     self->frames = frames;
-    if (self->frames!=NULL)
+    if ( kinect_frame )
       self->kinect_frame = strdup(kinect_frame);
 
     self->msg = NULL;
@@ -501,11 +502,17 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, int priority, lcm_t* lcm, BotFr
                       G_CALLBACK (on_param_widget_changed), self);
 
     sprintf(prefix, "rgbd_cameras.%s.lcm_channel", self->kinect_frame);
-    if ( bot_param_get_str(param, prefix, &channel_name) == -1 ) {
-      kinect_frame_msg_t_subscribe(self->lcm, "KINECT_FRAME", on_kinect_frame, self);
+
+    channel_name = default_channel_name;
+    if ( param ) {
+      if ( bot_param_get_str(param, prefix, &channel_name) == -1 ) {
+	kinect_frame_msg_t_subscribe(self->lcm, "KINECT_FRAME", on_kinect_frame, self);
+      } else {
+	kinect_frame_msg_t_subscribe(self->lcm, channel_name, on_kinect_frame, self);
+	free(channel_name);
+      }
     } else {
-      kinect_frame_msg_t_subscribe(self->lcm, channel_name, on_kinect_frame, self);
-      free(channel_name);
+      kinect_frame_msg_t_subscribe(self->lcm, "KINECT_FRAME", on_kinect_frame, self);
     }
 
     bot_viewer_add_renderer(viewer, renderer, priority);
