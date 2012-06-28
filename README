@@ -5,7 +5,6 @@ templates.  The policies and templates can be found at:
 
 ====
 
-
 Name:         kinect
 Maintainers:  Albert Huang <albert@csail.mit.edu>
 Summary:      Kinect LCM driver and utilities
