@@ -31,11 +31,12 @@
 #include <lcm/lcm.h>
 #include <pthread.h>
 
-//#if USE_JPEG_UTILS_POD
-#include <jpeg-utils/jpeg-utils.h>
-//#else
+#if USE_JPEG_UTILS_POD
+#include <jpeg-utils/jpeg.h>
+#else
+#include "jpeg.h"
 //#include "jpeg-utils-ijg.h"
-//#endif
+#endif
 
 #include <lcmtypes/kinect_depth_msg_t.h>
 #include <lcmtypes/kinect_image_msg_t.h>
