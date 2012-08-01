@@ -35,8 +35,6 @@ KinectOpenniLCM::KinectOpenniLCM(int argc, char **argv)
     int throttle;
     char* msg_channel;
 
-    
-
     // command line options - to throtle - to ignore image publish  
     while ((c = getopt(argc, argv, "hd:i:r:jq:zl:n:c:")) >= 0) {
         switch (c) {
@@ -355,7 +353,7 @@ void KinectOpenniLCM::DepthCallback (boost::shared_ptr<openni_wrapper::DepthImag
   if(requested_image_format == KINECT_IMAGE_MSG_T_VIDEO_RGB_JPEG){
       int compressed_size =  640*480*3;//image_buf_size;
 
-#if 1//USE_JPEG_UTILS_POD
+#if USE_JPEG_UTILS_POD
       int compression_status = jpeg_compress_8u_rgb (rgb_data, 640, 480, 640*3,
                                                      image_buf, &compressed_size, jpeg_quality);
 #else

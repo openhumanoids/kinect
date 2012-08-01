@@ -1,4 +1,4 @@
-add_definitions(-Wall)
+add_definitions(-Wall -std=gnu99 -msse2 -msse3 -DHAVE_INTEL)
 
 set(CMAKE_CXX_FLAGS "-g")
 
@@ -12,6 +12,11 @@ include_directories(. openni_camera
 
 add_executable(kinect-openni-lcm 
   main.cpp 
+   pixels.c     
+    pixels_sse2.c
+    pixels_sse3.c       
+    cpuid.c             
+    jpeg-utils-ijg.c    
   kinectOpenniLCM.cpp 
   openni_camera/openni_driver.cpp
   openni_camera/openni_device.cpp
@@ -32,7 +37,8 @@ add_executable(kinect-openni-lcm
 #  /home/spillai/envoy_latest/software/drivers/kinect/openni/ps_engine/build/ps_engine/Platform/Linux-x86/Bin/Release
 target_link_libraries(kinect-openni-lcm 
   OpenNI
-  jpeg-utils
+  jpeg
+  #  jpeg-utils
   #../../openni/openni/build/openni/Platform/Linux-x86/Redist/Lib/libOpenNI.so 
   z m ${LCMTYPES_LIBS} ncurses boost_program_options boost_thread usb-1.0)
 

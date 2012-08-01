@@ -34,8 +34,7 @@
 #if USE_JPEG_UTILS_POD
 #include <jpeg-utils/jpeg.h>
 #else
-#include "jpeg.h"
-//#include "jpeg-utils-ijg.h"
+#include "jpeg-utils-ijg.h"
 #endif
 
 #include <lcmtypes/kinect_depth_msg_t.h>
