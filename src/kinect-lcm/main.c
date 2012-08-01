@@ -21,7 +21,7 @@
 #include <lcmtypes/kinect_sensor_status_t.h>
 
 #if USE_JPEG_UTILS_POD
-#include <jpeg-utils/jpeg-utils.h>
+#include <jpeg-utils/jpeg.h>
 #else
 #include "jpeg-utils-ijg.h"
 #endif
