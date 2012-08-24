@@ -7,6 +7,7 @@ include_directories(. openni_camera
   ../../openni/openni/build/openni/Include
   ../../openni/ps_engine/build/ps_engine/Include
   ../../openni/nite/build/Nite-1.3.1.5/Include
+  openni
   )#/usr/include/ni)
 #link_directories(/opt/ros/electric/stacks/openni_kinect/openni_camera/lib)
 

@@ -88,6 +88,14 @@ class KinectOpenniLCM
  private:
   uint8_t* image_buf;
   int image_buf_size;
+  
+  uint16_t* depth_unpack_buf;
+  int depth_unpack_buf_size;
+
+  uint8_t* depth_compress_buf;
+  int depth_compress_buf_size;  
+  
+  
   int jpeg_quality;
   lcm_t* m_lcm;
   int64_t m_lastImageTime;
@@ -105,6 +113,7 @@ class KinectOpenniLCM
   rate_t* capture_rate;
   rate_t* report_rate;  
   int8_t  requested_image_format;
+  int use_zlib;
 
   boost::shared_ptr<openni_wrapper::OpenNIDevice> m_device;
 

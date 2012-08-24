@@ -31,7 +31,7 @@ KinectOpenniLCM::KinectOpenniLCM(int argc, char **argv)
     int jpeg_quality;
     int user_device_number = 0;
 
-    int use_zlib;
+    //int use_zlib;
     int throttle;
     char* msg_channel;
 
@@ -112,7 +112,6 @@ KinectOpenniLCM::KinectOpenniLCM(int argc, char **argv)
 
   m_lcm = bot_lcm_get_global(NULL);
 
-  depth_data = (uint8_t*)calloc(640*480*2, sizeof(uint8_t));
   rgb_data = (uint8_t*)calloc(640*480*3, sizeof(uint8_t));                                              
   
   image_buf_size = 640 * 480 * 10;
@@ -120,6 +119,18 @@ KinectOpenniLCM::KinectOpenniLCM(int argc, char **argv)
       fprintf(stderr, "Error allocating image buffer\n");
       //return 1;
   }
+  
+  
+  // allocate space for unpacking depth data
+  depth_unpack_buf_size = 640 * 480 * sizeof(uint16_t);
+  depth_unpack_buf = (uint16_t*) malloc(depth_unpack_buf_size);
+
+  // allocate space for zlib compressing depth data
+  depth_compress_buf_size = 640 * 480 * sizeof(int16_t) * 4;
+  depth_compress_buf = (uint8_t*) malloc(depth_compress_buf_size);
+  depth_data = depth_compress_buf;
+  //depth_data = (uint8_t*)calloc(640*480*2, sizeof(uint8_t));
+  
 
   report_rate = rate_new(0.5);
   // throttling
@@ -376,16 +387,30 @@ void KinectOpenniLCM::DepthCallback (boost::shared_ptr<openni_wrapper::DepthImag
   msg.depth.timestamp = thisTime;
   msg.depth.width = depth_image->getWidth();
   msg.depth.height = depth_image->getHeight();
-  msg.depth.compression = KINECT_DEPTH_MSG_T_COMPRESSION_NONE;
+  //msg.depth.compression = KINECT_DEPTH_MSG_T_COMPRESSION_NONE;
   msg.depth.depth_data_format = KINECT_DEPTH_MSG_T_DEPTH_MM;//KINECT_DEPTH_MSG_T_DEPTH_11BIT;
-  msg.depth.depth_data_nbytes = depth_image->getHeight() * depth_image->getWidth() * sizeof(short);
-  msg.depth.uncompressed_size = msg.depth.depth_data_nbytes;
-
-//new uint8_t[msg.depth.depth_data_nbytes];
-  //memset(msg.depth.depth_data, 128, msg.depth.depth_data_nbytes/2);    
-  //memset(&msg.depth.depth_data[msg.depth.depth_data_nbytes/2], 255, msg.depth.depth_data_nbytes/2);    
-  depth_image->fillDepthImageRaw(msg.depth.width, msg.depth.height, reinterpret_cast<unsigned short*>(depth_data), depth_image->getWidth() * sizeof(short));
-  msg.depth.depth_data = depth_data;
-
+  
+    depth_image->fillDepthImageRaw(msg.depth.width, msg.depth.height, reinterpret_cast<unsigned short*>(depth_unpack_buf), depth_image->getWidth() * sizeof(short));
+  
+  if(use_zlib == 1){
+    int uncompressed_size = depth_image->getHeight() * depth_image->getWidth() * sizeof(short);
+    unsigned long compressed_size = depth_compress_buf_size;
+    compress2(depth_compress_buf, &compressed_size, (const Bytef*) depth_unpack_buf, uncompressed_size,
+                  Z_BEST_SPEED);  
+    msg.depth.depth_data_nbytes =(int)compressed_size;
+    msg.depth.compression = KINECT_DEPTH_MSG_T_COMPRESSION_ZLIB;
+    msg.depth.uncompressed_size = uncompressed_size;
+    msg.depth.depth_data = depth_compress_buf;
+  }else{
+    //assert(msg.depth.depth_data_nbytes <= depth_compress_buf_size);
+    //memcpy(state->depth_compress_buf, state->depth_unpack_buf, state->msg.depth.depth_data_nbytes);
+    msg.depth.depth_data_nbytes = depth_image->getHeight() * depth_image->getWidth() * sizeof(short);
+    msg.depth.compression = KINECT_DEPTH_MSG_T_COMPRESSION_NONE;
+    msg.depth.uncompressed_size = msg.depth.depth_data_nbytes;
+    msg.depth.depth_data = (uint8_t*)depth_unpack_buf;
+  }
   kinect_frame_msg_t_publish(m_lcm, "KINECT_FRAME", &msg);
+  
+  fprintf(stderr,"j %d %d | z %d %d\n",requested_image_format,msg.image.image_data_nbytes, use_zlib, msg.depth.depth_data_nbytes );
+  
 }
