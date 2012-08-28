@@ -8,7 +8,7 @@ include_directories(. openni_camera
   ../../openni/ps_engine/build/ps_engine/Include
   ../../openni/nite/build/Nite-1.3.1.5/Include
   openni
-  /usr/include/ni)
+  /usr/include/openni)
 #link_directories(/opt/ros/electric/stacks/openni_kinect/openni_camera/lib)
 
 add_executable(kinect-openni-lcm 
