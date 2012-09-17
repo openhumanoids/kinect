@@ -14,20 +14,21 @@ Description:
   uses libfreenect, imported on Tue. Dec 21, 2010.
 
 Requirements:
-  libfreenect requirements:
-    libusb-1.0
+  LCM (http://lcm.googlecode.com)
+  (no official packages exist for LCM or libbot2, those must be installed
+  from source)
 
+Required Pods:
+  libbot2 (https://svn.csail.mit.edu/libbot2)
+
+Debian/Ubuntu packages:
+  libusb-1.0-0-dev
+  freeglut3-dev
   OpenGL
   GLUT
-  LCM (http://lcm.googlecode.com)
 
-  Optional:
-      libbot2 (https://svn.csail.mit.edu/libbot2)
-  
-
-  Debian/Ubuntu packages:
-    libusb-1.0-0-dev
-    freeglut3-dev
-
-    (no official packages exist for LCM or libbot2, those must be installed
-     from source)
+Additional Packages:
+OpenNI:
+sudo add-apt-repository ppa:v-launchpad-jochen-sprickerhof-de/pcl
+sudo apt-get update
+sudo apt-get install openni-dev ps-engine 
