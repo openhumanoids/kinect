@@ -216,7 +216,7 @@ void * KinectOpenniLCM::status_thread(void *data)
             msg.utime = bot_timestamp_now();
             msg.sensor_name = "kinect"; //maybe use some indexing - to make it unique
             msg.rate = self->capture_rate->current_hz;
-            
+            fprintf(stderr, "Freq : %f\n", self->capture_rate->current_hz);
             msg.type = KINECT_SENSOR_STATUS_T_KINECT; //prob need to identify this more - if there are multiple kinects
 
             kinect_sensor_status_t_publish(self->m_lcm, "SENSOR_STATUS_KINECT", &msg);
@@ -411,6 +411,6 @@ void KinectOpenniLCM::DepthCallback (boost::shared_ptr<openni_wrapper::DepthImag
   }
   kinect_frame_msg_t_publish(m_lcm, "KINECT_FRAME", &msg);
   
-  fprintf(stderr,"j %d %d | z %d %d\n",requested_image_format,msg.image.image_data_nbytes, use_zlib, msg.depth.depth_data_nbytes );
+  //fprintf(stderr,"j %d %d | z %d %d\n",requested_image_format,msg.image.image_data_nbytes, use_zlib, msg.depth.depth_data_nbytes );
   
 }
