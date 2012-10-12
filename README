@@ -17,6 +17,7 @@ Requirements:
   LCM (http://lcm.googlecode.com)
   (no official packages exist for LCM or libbot2, those must be installed
   from source)
+  libjpeg8-dev
 
 Required Pods:
   libbot2 (https://svn.csail.mit.edu/libbot2)

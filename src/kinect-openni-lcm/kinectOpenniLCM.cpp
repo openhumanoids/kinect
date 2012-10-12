@@ -339,9 +339,12 @@ void KinectOpenniLCM::ImageCallback (boost::shared_ptr<openni_wrapper::Image> im
 
 
   //std::cout << "got an image     :" << thisTime << ", " << ((float)diffTime/1000000.0f) << ", " << ((float)diffFromDepthTime/1000000.0f) << std::endl;
+  m_mutex.lock();
 
   image->fillRGB(image->getWidth(), image->getHeight(), reinterpret_cast<unsigned char*> (rgb_data), 640*3);
   m_lastImageTime = thisTime;
+  
+  m_mutex.unlock();
 }
 
 void KinectOpenniLCM::DepthCallback (boost::shared_ptr<openni_wrapper::DepthImage> depth_image, void* cookie)
@@ -409,7 +412,12 @@ void KinectOpenniLCM::DepthCallback (boost::shared_ptr<openni_wrapper::DepthImag
     msg.depth.uncompressed_size = msg.depth.depth_data_nbytes;
     msg.depth.depth_data = (uint8_t*)depth_unpack_buf;
   }
+
+
+  m_mutex.lock();
+  msg.image.timestamp = m_lastImageTime;
   kinect_frame_msg_t_publish(m_lcm, "KINECT_FRAME", &msg);
+  m_mutex.unlock();
   
   //fprintf(stderr,"j %d %d | z %d %d\n",requested_image_format,msg.image.image_data_nbytes, use_zlib, msg.depth.depth_data_nbytes );
   

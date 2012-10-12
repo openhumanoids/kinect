@@ -100,6 +100,7 @@ class KinectOpenniLCM
   lcm_t* m_lcm;
   int64_t m_lastImageTime;
   int64_t m_lastDepthTime;
+  boost::mutex m_mutex;
 
   uint8_t* rgb_data;
   uint8_t* depth_data;
