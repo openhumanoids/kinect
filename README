@@ -33,3 +33,9 @@ OpenNI:
 sudo add-apt-repository ppa:v-launchpad-jochen-sprickerhof-de/pcl
 sudo apt-get update
 sudo apt-get install openni-dev ps-engine 
+
+
+Problems with the driver failing to launch due to Xn****?
+try killing this program:
+/usr/bin/XnSensorServer /etc/openni
+
