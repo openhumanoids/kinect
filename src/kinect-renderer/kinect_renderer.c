@@ -13,6 +13,7 @@
 #include "jpeg-utils-ijg.h"
 
 #define PARAM_HISTORY_FREQUENCY "Scan Hist. Freq."
+#define PARAM_ALPHA "Alpha."
 #define MAX_REFERSH_RATE_USEC 30000 //not sure whether we really need this part
 
 typedef struct _KinectRenderer {
@@ -150,6 +151,20 @@ static void on_param_widget_changed (BotGtkParamWidget *pw, const char *name, vo
     bot_viewer_request_redraw(self->viewer);
 }
 
+static void
+on_load_preferences (BotViewer *viewer, GKeyFile *keyfile, void *user_data)
+{
+    KinectRenderer *self = user_data;
+    bot_gtk_param_widget_load_from_key_file (self->pw, keyfile, self->kinect_frame);
+}
+
+static void
+on_save_preferences (BotViewer *viewer, GKeyFile *keyfile, void *user_data)
+{
+    KinectRenderer *self = user_data;
+    bot_gtk_param_widget_save_to_key_file (self->pw, keyfile, self->kinect_frame);
+}
+
 static inline void
 _matrix_vector_multiply_3x4_4d (const double m[12], const double v[4],
         double result[3])
@@ -208,6 +223,7 @@ static void _draw(BotViewer *viewer, BotRenderer *renderer)
 
     //fprintf(stderr,"Depth Type : %d => %d \n", self->msg->depth.depth_data_format, KINECT_DEPTH_MSG_T_DEPTH_11BIT);//KINECT_DEPTH_MSG_T_DEPTH_MM);
     //float so = self->kcal->shift_offset; //unused
+    double alpha = bot_gtk_param_widget_get_double (self->pw, PARAM_ALPHA);
     
     double depth_to_rgb_uvd[12];
     double depth_to_depth_xyz[16];
@@ -217,6 +233,9 @@ static void _draw(BotViewer *viewer, BotRenderer *renderer)
 
     double depth_to_depth_xyz_trans[16];
     _matrix_transpose_4x4d(depth_to_depth_xyz, depth_to_depth_xyz_trans);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     if(self->msg->depth.depth_data_format == KINECT_DEPTH_MSG_T_DEPTH_11BIT ){
         glPushMatrix();
@@ -254,12 +273,13 @@ static void _draw(BotViewer *viewer, BotRenderer *renderer)
                     b = self->rgb_data[v_rgb*self->width*3 + u_rgb*3 + 2];
                 }
 
-                glColor3f(r / 255.0, g / 255.0, b / 255.0);
+                glColor4f(r / 255.0, g / 255.0, b / 255.0, alpha);
 
                 glVertex3f(u, v, disparity);
             }
         }
         glEnd();
+
         glPopMatrix();
     }
     else if(self->msg->depth.depth_data_format == KINECT_DEPTH_MSG_T_DEPTH_MM){
@@ -282,7 +302,7 @@ static void _draw(BotViewer *viewer, BotRenderer *renderer)
                 b = self->rgb_data[v*self->width*3 + u*3 + 2];
 
                 //glColor3f(r / 255.0, g / 255.0, b / 255.0);
-                glColor3f(r / 255.0, g / 255.0, b / 255.0);
+                glColor4f(r / 255.0, g / 255.0, b / 255.0, alpha);
                 float x = ( u * fx_inv - cx* fx_inv) * depth;
                 float y = ( v * fx_inv - cy* fx_inv) * depth;
 
@@ -313,6 +333,8 @@ static void _draw(BotViewer *viewer, BotRenderer *renderer)
     glEnd();
     */
     glPopMatrix(); //kinect_to_local
+    glDisable(GL_BLEND);
+
 }
 
 static void _free(BotRenderer *renderer)
@@ -488,6 +510,10 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, int priority, lcm_t* lcm, BotFr
                                     BOT_GTK_PARAM_WIDGET_SLIDER, 
                                     0.1, 30, 0.1, 30.0);
 
+    bot_gtk_param_widget_add_double(self->pw, PARAM_ALPHA, 
+                                    BOT_GTK_PARAM_WIDGET_SLIDER, 
+                                    0.05, 1.f, 0.05, 1.0);
+
     self->uncompress_buffer = NULL;
     self->uncompress_buffer_size = 0;
 
@@ -500,6 +526,10 @@ kinect_add_renderer_to_viewer(BotViewer* viewer, int priority, lcm_t* lcm, BotFr
 
     g_signal_connect (G_OBJECT (self->pw), "changed",
                       G_CALLBACK (on_param_widget_changed), self);
+    g_signal_connect (G_OBJECT (viewer), "load-preferences",
+                      G_CALLBACK (on_load_preferences), self);
+    g_signal_connect (G_OBJECT (viewer), "save-preferences",
+                      G_CALLBACK (on_save_preferences), self);
 
     sprintf(prefix, "rgbd_cameras.%s.lcm_channel", self->kinect_frame);
 
