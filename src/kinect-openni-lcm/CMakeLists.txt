@@ -41,7 +41,7 @@ target_link_libraries(kinect-openni-lcm
   jpeg
   #  jpeg-utils
   #../../openni/openni/build/openni/Platform/Linux-x86/Redist/Lib/libOpenNI.so 
-  z m ${LCMTYPES_LIBS}  boost_program_options boost_thread usb-1.0)
+  z m ${LCMTYPES_LIBS}  boost_program_options boost_thread usb-1.0 boost_system)
 
 pods_use_pkg_config_packages ( kinect-openni-lcm lcm bot2-core glib-2.0)
 
