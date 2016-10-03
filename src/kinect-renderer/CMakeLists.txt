@@ -43,6 +43,7 @@ target_link_libraries(kinect-viewer
 
 pods_use_pkg_config_packages(kinect-viewer
     glib-2.0
+    gthread-2.0
     bot2-vis
     bot2-frames
     bot2-param-client 
