@@ -6,8 +6,8 @@
 
 #include <lcm/lcm-cpp.hpp>
 
-#include "lcmtypes/bot_core.hpp"
 #include "lcmtypes/kinect.hpp"
+#include <lcmtypes/bot_core/image_t.hpp>
 class rgb_tool{
   public:
     rgb_tool(lcm::LCM* &lcm_);
