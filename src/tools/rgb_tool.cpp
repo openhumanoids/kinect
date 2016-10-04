@@ -6,8 +6,9 @@
 
 #include <lcm/lcm-cpp.hpp>
 
-#include "lcmtypes/bot_core.hpp"
 #include "lcmtypes/kinect.hpp"
+#include "lcmtypes/bot_core/image_t.hpp"
+
 class rgb_tool{
   public:
     rgb_tool(lcm::LCM* &lcm_);
@@ -22,14 +23,10 @@ class rgb_tool{
 };    
 
 rgb_tool::rgb_tool(lcm::LCM* &lcm_): lcm_(lcm_){
-        
-  lcm_->subscribe( "KINECT_FRAME",&rgb_tool::kinectHandler,this);
-
+  lcm_->subscribe("KINECT_FRAME",&rgb_tool::kinectHandler,this);
 }
 
 void rgb_tool::kinectHandler(const lcm::ReceiveBuffer* rbuf, const std::string& channel, const  kinect::frame_msg_t* msg){
-
-
   bot_core::image_t lcm_img;
   lcm_img.utime =msg->image.timestamp;
   lcm_img.width =msg->image.width;
@@ -51,11 +48,9 @@ void rgb_tool::kinectHandler(const lcm::ReceiveBuffer* rbuf, const std::string& 
   }
 
   lcm_->publish("KINECT_RGB", &lcm_img);
-
 }
 
 int main(int argc, char ** argv) {
-
   lcm::LCM* lcm(new lcm::LCM);
   if(!lcm->good()){
     std::cerr <<"ERROR: lcm is not good()" <<std::endl;
