@@ -16,7 +16,6 @@ add_executable(kinect-lcm main.c
 add_executable(test-sender test_sender.c timestamp.c)
 
 target_link_libraries(kinect-lcm 
-    #glib-2.0
     gthread-2.0
     freenect
     jpeg
@@ -29,6 +28,7 @@ target_link_libraries(test-sender
 
 pods_use_pkg_config_packages(kinect-lcm
     glib-2.0
+    gthread-2.0
     libusb-1.0
     lcm
     #    jpeg-utils
