@@ -357,7 +357,7 @@ static void _free(BotRenderer *renderer)
     free(self);
 }
 
-inline void fillDefault(KinectRenderer *self, double* R, double* T)
+static inline void fillDefault(KinectRenderer *self, double* R, double* T)
 {
     self->kcal->width = 640;
     self->kcal->height = 480;
